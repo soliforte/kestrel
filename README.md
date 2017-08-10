@@ -21,11 +21,9 @@ Parse devices and create pins for networks.
 
 Still under heavy development, also: I don't know any javascript at all, so if you have suggestions to fix/improve, let me know.
 
-Assuming you have the newest build of kismet install:
-   from the kismet source directory:
-   mkdir plugin-kismap
-   cd plugin-kismap
-   clone this repo
+Assuming you have the newest build of kismet installed:
+   From the kismet source directory:
+   mkdir plugin-leaflet
    cd ../
    make plugins-install
    start kismet server
