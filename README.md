@@ -23,10 +23,8 @@ Still under heavy development, also: I don't know any javascript at all, so if y
 
 Assuming you have the newest build of kismet installed:
    From the kismet source directory:
-   mkdir plugin-leaflet
-   cd ../
+   clone this repository (git clone https://github.com/soliforte/kismap )
    make plugins-install
    start kismet server
    connect to UI (http://localhost:2501)
-   
-   If it worked, you should get a popup that says it loaded.
+   Should have a new Maps tab, and your browser will ask for your location.
