@@ -14,7 +14,6 @@
 kismet_ui_tabpane.AddTab({
 	id:    'mapid',
 	tabTitle:    'Maps',
-	expandable: true,
 	createCallback: function(div) {
     $(document).ready( function() {
       //$.getScript('/plugin/leaflet/js/leaflet.js')
