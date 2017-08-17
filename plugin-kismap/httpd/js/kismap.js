@@ -20,10 +20,10 @@ kismet_ui_tabpane.AddTab({
       //$.getScript('/plugin/leaflet/js/leaflet.js')
       $(div).append('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
       $(div).append('<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />');
-      $(div).append('<link rel="stylesheet" href="/plugin/leaflet/leaflet.css">');
-      $(div).append('<script src="/plugin/leaflet/js/leaflet.js"></script>');
-      $(div).append('<link rel="stylesheet" href="/plugin/leaflet/MarkerCluster.css">')
-      $(div).append('<script src="/plugin/leaflet/js/leaflet.markercluster.js">')
+      $(div).append('<link rel="stylesheet" href="/plugin/kismap/leaflet.css">');
+      $(div).append('<script src="/plugin/kismap/js/leaflet.js"></script>');
+      $(div).append('<link rel="stylesheet" href="/plugin/kismap/MarkerCluster.css">')
+      $(div).append('<script src="/plugin/kismap/js/leaflet.markercluster.js">')
 
       var mymap = L.map('mapid').setView([40.775,-73.972], 15);
             L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
