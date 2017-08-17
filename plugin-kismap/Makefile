@@ -1,5 +1,5 @@
 # Our plugin directory name when we install
-PLUGIN_NAME ?= leaflet
+PLUGIN_NAME ?= kismap
 
 # Look for the kismet source in /usr/src/kismet by default
 KIS_SRC_DIR ?= /usr/src/kismet
