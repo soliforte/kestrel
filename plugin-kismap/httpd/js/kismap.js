@@ -157,7 +157,6 @@ kismet_ui_tabpane.AddTab({
                 marker.data.popup = popup;
                 marker.filtered = false;
                 markers.push(marker);
-                markers.push(marker);
                 dataCluster.RegisterMarker(marker);
               } else if (type == 'Wi-Fi Client'){
                 //console.log(ssid, type, mac, lat, lon);
@@ -168,6 +167,7 @@ kismet_ui_tabpane.AddTab({
                 marker.data.id = mac;
                 marker.data.popup = popup;
                 marker.filtered = true;
+                marker.filtered = false;
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
               }
