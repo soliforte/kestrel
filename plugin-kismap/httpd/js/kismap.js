@@ -19,12 +19,14 @@ kismet_ui_tabpane.AddTab({
 
       $(div).append('<head>');
       $(div).append('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
+      $(div).append('<link rel="stylesheet" href="/plugin/kismap/font-awesome.min.css">');
       $(div).append('<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />');
       $(div).append('<link rel="stylesheet" href="/plugin/kismap/leaflet.css">');
       $(div).append('<script src="/plugin/kismap/js/leaflet.js"></script>');
-      $(div).append('<link rel="stylesheet" href="/plugin/kismap/MarkerCluster.css">');
+      $(div).append('<link rel="stylesheet" href="/plugin/kismap/leaflet.awesome-markers.css">');
+      $(div).append('<script type="text/javascript" src="/plugin/kismap/js/leaflet.awesome-markers.min.js"></script>');
       $(div).append('<script src="/plugin/kismap/js/PruneCluster.js"></script>');
-      $(div).append('<script src="/plugin/kismap/js/leaflet.markercluster.js">');
+      $(div).append('<script src="/plugin/kismap/js/leaflet.markercluster.js"></script>');
       $(div).append('</head>');
       $(div).append('<ul class="side-menu">');
       //Instantiate cluster for le clustering of devices
@@ -37,6 +39,8 @@ kismet_ui_tabpane.AddTab({
         e.population = cluster.population;
         return e;
       };
+
+      //var opicon = L.Icon.Glyph({prefix: 'fa',glyph: 'user-o'});
 
       //Instantiate map
       var mymap = L.map('mapid').setView([40.775,-73.972], 15);
@@ -60,6 +64,11 @@ kismet_ui_tabpane.AddTab({
       new L.Control.Zoom({
         position: 'topright'
       }).addTo(mymap);
+
+      var neticon = L.AwesomeMarkers.icon({
+        icon: 'coffee',
+        markerColor: 'red'
+      });
 
       var colors = ['#ff4b00', '#bac900', '#EC1813', '#55BCBE', '#D2204C', '#FF0000', '#ada59a', '#3e647e'],
         pi2 = Math.PI * 2;
@@ -144,6 +153,7 @@ kismet_ui_tabpane.AddTab({
                 marker.weight = 1;
                 marker.data.id = mac;
                 marker.data.popup = popup;
+                marker.data.icon = neticon;
                 marker.filtered = false;
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
@@ -155,6 +165,7 @@ kismet_ui_tabpane.AddTab({
                 marker.weight = 2;
                 marker.data.id = mac;
                 marker.data.popup = popup;
+                marker.data.icon = neticon;
                 marker.filtered = false;
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
@@ -166,7 +177,7 @@ kismet_ui_tabpane.AddTab({
                 marker.weight = 3;
                 marker.data.id = mac;
                 marker.data.popup = popup;
-                marker.filtered = true;
+                marker.data.icon = neticon;
                 marker.filtered = false;
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
