@@ -144,7 +144,7 @@ kismet_ui_tabpane.AddTab({
                 marker.weight = 1;
                 marker.data.id = mac;
                 marker.data.popup = popup;
-                marker.filtered = true;
+                marker.filtered = false;
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
               } else if (type == 'Wi-Fi Bridged Device') {
@@ -155,7 +155,8 @@ kismet_ui_tabpane.AddTab({
                 marker.weight = 2;
                 marker.data.id = mac;
                 marker.data.popup = popup;
-                marker.filtered = true;
+                marker.filtered = false;
+                markers.push(marker);
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
               } else if (type == 'Wi-Fi Client'){
