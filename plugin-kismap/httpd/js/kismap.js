@@ -18,7 +18,6 @@ kismet_ui_tabpane.AddTab({
     $(document).ready( function() {
 
       $(div).append('<head>');
-      $(div).append('<link rel="stylesheet" href="/plugin/kismap/sidemenu.css">');
       $(div).append('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
       $(div).append('<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />');
       $(div).append('<link rel="stylesheet" href="/plugin/kismap/leaflet.css">');
@@ -148,7 +147,6 @@ kismet_ui_tabpane.AddTab({
                 marker.filtered = true;
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
-                $(div).append('<li><a href="#"><span class="fa fa-check-square"></span>'+mac+'</a></li>');
               } else if (type == 'Wi-Fi Bridged Device') {
                 //console.log(ssid, type, mac, lat, lon);
                 var popup = "<b>" + ssid + "</b><br>" + mac + "<br>" + rssi;
@@ -160,7 +158,6 @@ kismet_ui_tabpane.AddTab({
                 marker.filtered = true;
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
-                $(div).append('<li><a href="#"><span class="fa fa-check-square"></span>'+mac+'</a></li>');
               } else if (type == 'Wi-Fi Client'){
                 //console.log(ssid, type, mac, lat, lon);
                 var popup = "<b>" + ssid + "</b><br>" + mac + "<br>" + rssi;
@@ -172,7 +169,6 @@ kismet_ui_tabpane.AddTab({
                 marker.filtered = true;
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
-                $(div).append('<li><a href="#"><span class="fa fa-check-square"></span>'+mac+'</a></li>');
               }
               dataCluster.ProcessView();
             }// end of for
