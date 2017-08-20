@@ -19,19 +19,16 @@ kismet_ui_tabpane.AddTab({
 
       $(div).append('<head>');
       $(div).append('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
-      $(div).append('<link rel="stylesheet" href="/plugin/kismap/font-awesome.min.css">');
       $(div).append('<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />');
       $(div).append('<link rel="stylesheet" href="/plugin/kismap/leaflet.css">');
       $(div).append('<script src="/plugin/kismap/js/leaflet.js"></script>');
-      $(div).append('<link rel="stylesheet" href="/plugin/kismap/leaflet.awesome-markers.css">');
-      $(div).append('<script type="text/javascript" src="/plugin/kismap/js/leaflet.awesome-markers.min.js"></script>');
+      $(div).append('<link rel="stylesheet" href="/plugin/kismap/LeafletStyleSheet.css">')
       $(div).append('<script src="/plugin/kismap/js/PruneCluster.js"></script>');
-      $(div).append('<script src="/plugin/kismap/js/leaflet.markercluster.js"></script>');
       $(div).append('</head>');
       $(div).append('<ul class="side-menu">');
+
       //Instantiate cluster for le clustering of devices
       var dataCluster = new PruneClusterForLeaflet();
-      //var dataCluster = new L.MarkerClusterGroup();
       //Build custom ClusterIcon
       dataCluster.BuildLeafletClusterIcon = function(cluster) {
         var e = new L.Icon.MarkerCluster();
@@ -39,8 +36,6 @@ kismet_ui_tabpane.AddTab({
         e.population = cluster.population;
         return e;
       };
-
-      //var opicon = L.Icon.Glyph({prefix: 'fa',glyph: 'user-o'});
 
       //Instantiate map
       var mymap = L.map('mapid').setView([40.775,-73.972], 15);
@@ -56,19 +51,12 @@ kismet_ui_tabpane.AddTab({
           mymap.locate({setView: true, maxZoom: 15});
       });
       //Once location is found, drop a marker on that location
-      //mymap.on('locationfound', onLocationFound);
-      //function onLocationFound(e) {
-        // e.heading will contain the user's heading (in degrees) if it's available, and if not it will be NaN. This would allow you to point a marker in the same direction the user is pointed.
-      //    setView(e.latlng);
-      //}
+
+
+
       new L.Control.Zoom({
         position: 'topright'
       }).addTo(mymap);
-
-      var neticon = L.AwesomeMarkers.icon({
-        icon: 'coffee',
-        markerColor: 'red'
-      });
 
       var colors = ['#ff4b00', '#bac900', '#EC1813', '#55BCBE', '#D2204C', '#FF0000', '#ada59a', '#3e647e'],
         pi2 = Math.PI * 2;
@@ -125,9 +113,29 @@ kismet_ui_tabpane.AddTab({
         }
     });
 
-//    dataCluster.BuildLeafletCluster = function(cluster, position) {
+    var opMarker = new L.marker([0,0]);
 
-  //  };
+    $(window).ready( function() {
+      $.getJSON("/devices/last-time/-5/devices.json").done(function(devs) {
+        var lat = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
+        var lon = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
+        var opMarker = L.marker([lat, lon]).addTo(mymap);
+      })
+    });
+
+    function plotOp() {
+      $.getJSON("/devices/last-time/-5/devices.json").done(function(devs) {
+        var lat = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
+        var lon = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
+        opMarker.setLatLng(lat,lon).update(mymap);
+        console.log('New: ' + lat, lon)
+      })
+    };
+
+    $(window).ready( function(){
+      setInterval(plotOp, 900);
+    })
+    //mymap.on('click', plotOp);
 
       $(window).ready( function() {
        setInterval(getDevs, 6000);
@@ -153,7 +161,6 @@ kismet_ui_tabpane.AddTab({
                 marker.weight = 1;
                 marker.data.id = mac;
                 marker.data.popup = popup;
-                marker.data.icon = neticon;
                 marker.filtered = false;
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
@@ -165,7 +172,6 @@ kismet_ui_tabpane.AddTab({
                 marker.weight = 2;
                 marker.data.id = mac;
                 marker.data.popup = popup;
-                marker.data.icon = neticon;
                 marker.filtered = false;
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
@@ -177,7 +183,6 @@ kismet_ui_tabpane.AddTab({
                 marker.weight = 3;
                 marker.data.id = mac;
                 marker.data.popup = popup;
-                marker.data.icon = neticon;
                 marker.filtered = false;
                 markers.push(marker);
                 dataCluster.RegisterMarker(marker);
