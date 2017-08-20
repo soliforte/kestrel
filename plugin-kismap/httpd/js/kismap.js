@@ -172,7 +172,7 @@ kismet_ui_tabpane.AddTab({
                 dataCluster.RegisterMarker(bridgemark);
               } else if (type == 'Wi-Fi Client'){
                 //console.log(ssid, type, mac, lat, lon);
-                var popup = "<b>" + ssid + "</b><br>" + mac + "<br>" + rssi;
+                var popup = "<b>Client: </b>" + mac + "<br>" + rssi;
                 var climarker = new PruneCluster.Marker(lat, lon);
                 climarker.category = 3;
                 climarker.weight = 3;
