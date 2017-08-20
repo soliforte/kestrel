@@ -39,20 +39,15 @@ kismet_ui_tabpane.AddTab({
 
       //Instantiate map
       var mymap = L.map('mapid').setView([40.775,-73.972], 15);
-            L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
-                    maxZoom: 18,
-                    attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
-                            '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
-                            'Imagery © <a href="http://mapbox.com">Mapbox</a>',
-                    id: 'mapbox.streets'
+            L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             }).addTo(mymap);
       //Probably removing this. Gets current location via browser API
       $( window ).ready( function(){
           mymap.locate({setView: true, maxZoom: 15});
       });
       //Once location is found, drop a marker on that location
-
-
 
       new L.Control.Zoom({
         position: 'topright'
@@ -128,6 +123,7 @@ kismet_ui_tabpane.AddTab({
         var lat = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
         var lon = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
         opMarker.setLatLng(lat,lon).update(mymap);
+        //opMarker.setView(); // Not tested yet, but should center map on current location
         console.log('New: ' + lat, lon)
       })
     };
@@ -138,54 +134,53 @@ kismet_ui_tabpane.AddTab({
     //mymap.on('click', plotOp);
 
       $(window).ready( function() {
-       setInterval(getDevs, 6000);
+       setInterval(getDevs, 20000);
       });
       //Main routine, this gets devices and plots them
       function getDevs() {
         //Get devices within the last n seconds. Make this throttle-able with a form??
-        var size = 10000;
         var markers =[];
-        $.getJSON("/devices/last-time/-60/devices.json").done(function(devs) {
+        $.getJSON("/devices/last-time/-20/devices.json").done(function(devs) {
             for (var x = 0; x < devs.length; x++) {
               var ssid = devs[x]['kismet.device.base.name'];
               var type = devs[x]['kismet.device.base.type'];
               var mac = devs[x]['kismet.device.base.macaddr'];
-              var rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.last_signal_dbm']; //Last signal dBm
+              var rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
               var lat = devs[x]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
               var lon = devs[x]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
               if (type == 'Wi-Fi AP'){
                 //console.log(ssid, type, mac, lat, lon);
                 var popup = "<b>" + ssid + "</b><br>" + mac + "<br>" + rssi;
-                var marker = new PruneCluster.Marker(lat, lon);
-                marker.category = 1;
-                marker.weight = 1;
-                marker.data.id = mac;
-                marker.data.popup = popup;
-                marker.filtered = false;
-                markers.push(marker);
-                dataCluster.RegisterMarker(marker);
+                var netmark = new PruneCluster.Marker(lat, lon);
+                netmark.category = 1;
+                netmark.weight = 1;
+                netmark.data.id = mac;
+                netmark.data.popup = popup;
+                netmark.filtered = false;
+                markers.push(netmark);
+                dataCluster.RegisterMarker(netmark);
               } else if (type == 'Wi-Fi Bridged Device') {
                 //console.log(ssid, type, mac, lat, lon);
                 var popup = "<b>" + ssid + "</b><br>" + mac + "<br>" + rssi;
-                var marker = new PruneCluster.Marker(lat, lon);
-                marker.category = 2;
-                marker.weight = 2;
-                marker.data.id = mac;
-                marker.data.popup = popup;
-                marker.filtered = false;
-                markers.push(marker);
-                dataCluster.RegisterMarker(marker);
+                var bridgemark = new PruneCluster.Marker(lat, lon);
+                bridgemark.category = 2;
+                bridgemark.weight = 2;
+                bridgemark.data.id = mac;
+                bridgemark.data.popup = popup;
+                bridgemark.filtered = false;
+                markers.push(bridgemark);
+                dataCluster.RegisterMarker(bridgemark);
               } else if (type == 'Wi-Fi Client'){
                 //console.log(ssid, type, mac, lat, lon);
                 var popup = "<b>" + ssid + "</b><br>" + mac + "<br>" + rssi;
-                var marker = new PruneCluster.Marker(lat, lon);
-                marker.category = 3;
-                marker.weight = 3;
-                marker.data.id = mac;
-                marker.data.popup = popup;
-                marker.filtered = false;
-                markers.push(marker);
-                dataCluster.RegisterMarker(marker);
+                var climarker = new PruneCluster.Marker(lat, lon);
+                climarker.category = 3;
+                climarker.weight = 3;
+                climarker.data.id = mac;
+                climarker.data.popup = popup;
+                climarker.filtered = false;
+                markers.push(climarker);
+                dataCluster.RegisterMarker(climarker);
               }
               dataCluster.ProcessView();
             }// end of for
