@@ -26,7 +26,7 @@ kismet_ui_tabpane.AddTab({
       $(div).append('<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />');
       $(div).append('<link rel="stylesheet" href="/plugin/kismap/leaflet.css">');
       $(div).append('<script src="/plugin/kismap/js/leaflet.js"></script>');
-      $(div).append('<link rel="stylesheet" href="/plugin/kismap/LeafletStyleSheet.css">')
+      $(div).append('<link rel="stylesheet" href="/plugin/kismap/LeafletStyleSheet.css">');
       $(div).append('<script src="/plugin/kismap/js/PruneCluster.js"></script>');
       $(div).append('</head>');
       $(div).append('<ul class="side-menu">');
@@ -53,9 +53,6 @@ kismet_ui_tabpane.AddTab({
       });
       //Once location is found, drop a marker on that location
 
-      new L.Control.Zoom({
-        position: 'topright'
-      }).addTo(mymap);
 
       var colors = ['#ff4b00', '#bac900', '#EC1813', '#55BCBE', '#D2204C', '#FF0000', '#ada59a', '#3e647e'],
         pi2 = Math.PI * 2;
@@ -111,31 +108,6 @@ kismet_ui_tabpane.AddTab({
             canvas.fillText(this.population, 22, 22, 40);
         }
     });
-
-    var opMarker = new L.marker([0,0]);
-
-    //$(window).ready( function() {
-    //  $.getJSON("/devices/last-time/-5/devices.json").done(function(devs) {
-    //    var lat = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
-    //    var lon = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
-    //    var opMarker = L.marker([lat, lon]).addTo(mymap);
-    //  })
-    //});
-
-    //function plotOp() {
-    //  $.getJSON("/devices/last-time/-5/devices.json").done(function(devs) {
-    //    var lat = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
-    //    var lon = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
-    //    opMarker.setLatLng(lat,lon).update(mymap);
-    //    //opMarker.setView(); // Not tested yet, but should center map on current location
-    //    console.log('New: ' + lat, lon)
-    //  })
-    //};
-
-    //$(window).ready( function(){
-    //  setInterval(plotOp, 900);
-    //})
-    //mymap.on('click', plotOp);
 
       $(window).ready( function() {
        setInterval(getDevs, 20000);
