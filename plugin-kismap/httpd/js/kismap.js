@@ -110,27 +110,27 @@ kismet_ui_tabpane.AddTab({
 
     var opMarker = new L.marker([0,0]);
 
-    $(window).ready( function() {
-      $.getJSON("/devices/last-time/-5/devices.json").done(function(devs) {
-        var lat = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
-        var lon = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
-        var opMarker = L.marker([lat, lon]).addTo(mymap);
-      })
-    });
+    //$(window).ready( function() {
+    //  $.getJSON("/devices/last-time/-5/devices.json").done(function(devs) {
+    //    var lat = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
+    //    var lon = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
+    //    var opMarker = L.marker([lat, lon]).addTo(mymap);
+    //  })
+    //});
 
-    function plotOp() {
-      $.getJSON("/devices/last-time/-5/devices.json").done(function(devs) {
-        var lat = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
-        var lon = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
-        opMarker.setLatLng(lat,lon).update(mymap);
-        //opMarker.setView(); // Not tested yet, but should center map on current location
-        console.log('New: ' + lat, lon)
-      })
-    };
+    //function plotOp() {
+    //  $.getJSON("/devices/last-time/-5/devices.json").done(function(devs) {
+    //    var lat = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
+    //    var lon = devs[0]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
+    //    opMarker.setLatLng(lat,lon).update(mymap);
+    //    //opMarker.setView(); // Not tested yet, but should center map on current location
+    //    console.log('New: ' + lat, lon)
+    //  })
+    //};
 
-    $(window).ready( function(){
-      setInterval(plotOp, 900);
-    })
+    //$(window).ready( function(){
+    //  setInterval(plotOp, 900);
+    //})
     //mymap.on('click', plotOp);
 
       $(window).ready( function() {
@@ -146,8 +146,8 @@ kismet_ui_tabpane.AddTab({
               var type = devs[x]['kismet.device.base.type'];
               var mac = devs[x]['kismet.device.base.macaddr'];
               var rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
-              var lat = devs[x]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
-              var lon = devs[x]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
+              var lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lat'];
+              var lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lon'];
               if (type == 'Wi-Fi AP'){
                 //console.log(ssid, type, mac, lat, lon);
                 var popup = "<b>" + ssid + "</b><br>" + mac + "<br>" + rssi;
@@ -184,7 +184,7 @@ kismet_ui_tabpane.AddTab({
               }
               dataCluster.ProcessView();
             }// end of for
-            mymap.addLayer( dataCluster );
+            mymap.addLayer( dataCluster ).setView([lat,lon], 18);
           }); //end of getJSON
         }; //end of getdevs
       }); //end of document.ready
