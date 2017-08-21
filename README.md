@@ -19,6 +19,7 @@ In lieu of centering on current location, I center on the most recently plotted 
 A couple of notes: I have not worked out how to prevent duplicate markers, so staying in one spot can lead to a LOT of markers in one spot, depending on the refresh rate (adjustable in kismap.js). Right now, it grabs devices from the last 20s, every 20s which seems pretty reasonable.
 
 Refreshing the browser clears the map of all markers.
+
 #TODO
 
 Center on operator.
