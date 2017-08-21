@@ -1,3 +1,7 @@
+// Author: soliforte
+// Email: soliforte@protonmail.com
+// Git: github.com/soliforte
+// Freeware, enjoy. If you do something really cool with it, let me know. Pull requests encouraged
 (
   typeof define === "function" ? function (m) { define("plugin-kismap-js", m); } :
   typeof exports === "object" ? function (m) { module.exports = m(); } :
