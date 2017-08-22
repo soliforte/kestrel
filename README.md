@@ -34,20 +34,26 @@ Parse devices and create pins for networks.
 
 Still under heavy development, also: I don't know any javascript at all, so if you have suggestions to fix/improve, let me know.
 
-Assuming you have the newest build of kismet installed:
+Assuming you have the newest build of kismet installed (from the Kismet git-master development repository):
 
-   From the kismet source directory:
+   Clone this repository 
 
-   clone this repository (git clone https://github.com/soliforte/kismap )
+    $ git clone https://github.com/soliforte/kismap
 
-   Copy the plugin-kismap directory into the kismet directory
+   Install the plugin - plugins can be installed system-side or to your home directory only.
 
-   cd kismet/
+   To install system-wide (assuming your Kismet install is in the default location):
 
-   make plugins-install
+    $ cd plugin-kismap
+    $ sudo make install
 
-   start kismet server
+   To install in the user directory, as the user who runs Kismet:
 
-   connect to UI (http://localhost:2501)
+    $ cd plugin-kismap
+    $ make userinstall
 
-   Should have a new Maps tab, and your browser will ask for your location.
+   Start kismet server - if Kismet was already running, you'll need to restart it.
+
+   Connect to the Kismet UI (http://localhost:2501)
+
+   Kismet should now have a new Maps tab, and your browser will ask for your location.
