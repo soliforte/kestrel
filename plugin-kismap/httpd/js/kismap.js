@@ -24,6 +24,7 @@ kismet_ui_tabpane.AddTab({
       $(div).append('<head>');
       $(div).append('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
       $(div).append('<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />');
+      $(div).append('<script src="/plugin/kismap/js/underscore-min.js"></script>');
       $(div).append('<link rel="stylesheet" href="/plugin/kismap/leaflet.css">');
       $(div).append('<script src="/plugin/kismap/js/leaflet.js"></script>');
       $(div).append('<link rel="stylesheet" href="/plugin/kismap/LeafletStyleSheet.css">');
@@ -108,48 +109,60 @@ kismet_ui_tabpane.AddTab({
             canvas.fillText(this.population, 22, 22, 40);
         }
     });
+    var markers = [];
+    var macs = [];
 
-      $(window).ready( function() {
-       setInterval(getDevs, 20000);
-      });
+    $(window).ready( function() {
+     setInterval(addDevs, 5000);
+    });
+
+    function addDevs() {
+      getDevs();
+      var uniqmacs = _.uniq(macs, 'MAC');
+      dataCluster.RemoveMarkers();
+      for ( var i in uniqmacs){
+        var marker = new PruneCluster.Marker(uniqmacs[i]['LAT'], uniqmacs[i]['LON']);
+        marker.data.id = uniqmacs[i]['MAC'];
+        marker.filtered = false;
+        if (uniqmacs[i]['TYPE'] == "Wi-Fi AP"){
+          marker.category = 1;
+          marker.weight = 1;
+        } else if (uniqmacs[i]['TYPE'] == "Wi-Fi Client") {
+          marker.category = 2;
+          marker.weight = 1;
+        } else {
+          marker.category = 3;
+          marker.weight = 1;
+        }
+        dataCluster.RegisterMarker(marker);
+      }
+      dataCluster.ProcessView()
+      var latlon = _.last(uniqmacs);
+      mymap.addLayer( dataCluster ).setView([latlon['LAT'],latlon['LON']], 16);
+    }
+
       //Main routine, this gets devices and plots them
-      function getDevs() {
-        //Get devices within the last n seconds. Make this throttle-able with a form??
-        var markers =[];
-        $.getJSON("/devices/last-time/-20/devices.json").done(function(devs) {
-            for (var x = 0; x < devs.length; x++) {
-              var ssid = devs[x]['kismet.device.base.name'];
-              var type = devs[x]['kismet.device.base.type'];
-              var mac = devs[x]['kismet.device.base.macaddr'];
-              var rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
-              var lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lat'];
-              var lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lon'];
-              var popup = "<b>" + ssid + "</b><br>" + mac + "<br>" + rssi;
-              var marker = new PruneCluster.Marker(lat, lon);
-              marker.data.id = mac;
-              marker.data.popup = popup;
-              marker.filtered = false;
-              if (type == 'Wi-Fi AP'){
-                marker.category = 1;
-                marker.weight = 1;
-              } else if (type == 'Wi-Fi Bridged Device') {
-                marker.category = 3;
-                marker.weight = 1;
-              } else if (type == 'Wi-Fi Client'){
-                marker.category = 2;
-                marker.weight = 1;
-              }
-              markers.push(marker);
-              dataCluster.RegisterMarker(marker);
-              dataCluster.ProcessView();
-            }// end of for
-            mymap.addLayer( dataCluster ).setView([lat,lon], 17);
-          }); //end of getJSON
-        }; //end of getdevs
-      }); //end of document.ready
-    }, //end of function(div)
-	   priority:    -999,
-   }); //End of createCallback
+    function getDevs() {
+      //Get devices within the last n seconds. Make this throttle-able with a form??
+      var newmarkers =[];
+      //var newmacs = [];
+      $.getJSON("/devices/last-time/-20/devices.json").done(function(devs) {
+          for (var x = 0; x < devs.length; x++) {
+            var ssid = devs[x]['kismet.device.base.name'];
+            var type = devs[x]['kismet.device.base.type'];
+            var mac = devs[x]['kismet.device.base.macaddr'];
+            var rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
+            var lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lat'];
+            var lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lon'];
+            var device = {SSID: ssid, TYPE: type, MAC: mac, RSSI: rssi, LAT: lat, LON: lon};
+            macs.push(device);
+          }// end of for
+        }); //end of getJSON
+      }; //end of getdevs
+    }); //end of document.ready
+  }, //end of function(div)
+   priority:    -999,
+ }); //End of createCallback
 // We're done loading
 exports.load_complete = 1;
 return exports;
