@@ -124,43 +124,26 @@ kismet_ui_tabpane.AddTab({
               var rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
               var lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lat'];
               var lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lon'];
+              var popup = "<b>" + ssid + "</b><br>" + mac + "<br>" + rssi;
+              var marker = new PruneCluster.Marker(lat, lon);
+              marker.data.id = mac;
+              marker.data.popup = popup;
+              marker.filtered = false;
               if (type == 'Wi-Fi AP'){
-                //console.log(ssid, type, mac, lat, lon);
-                var popup = "<b>" + ssid + "</b><br>" + mac + "<br>" + rssi;
-                var netmark = new PruneCluster.Marker(lat, lon);
-                netmark.category = 1;
-                netmark.weight = 1;
-                netmark.data.id = mac;
-                netmark.data.popup = popup;
-                netmark.filtered = false;
-                markers.push(netmark);
-                dataCluster.RegisterMarker(netmark);
+                marker.category = 1;
+                marker.weight = 1;
               } else if (type == 'Wi-Fi Bridged Device') {
-                //console.log(ssid, type, mac, lat, lon);
-                var popup = "<b>" + ssid + "</b><br>" + mac + "<br>" + rssi;
-                var bridgemark = new PruneCluster.Marker(lat, lon);
-                bridgemark.category = 2;
-                bridgemark.weight = 2;
-                bridgemark.data.id = mac;
-                bridgemark.data.popup = popup;
-                bridgemark.filtered = false;
-                markers.push(bridgemark);
-                dataCluster.RegisterMarker(bridgemark);
+                marker.category = 3;
+                marker.weight = 1;
               } else if (type == 'Wi-Fi Client'){
-                //console.log(ssid, type, mac, lat, lon);
-                var popup = "<b>Client: </b>" + mac + "<br>" + rssi;
-                var climarker = new PruneCluster.Marker(lat, lon);
-                climarker.category = 3;
-                climarker.weight = 3;
-                climarker.data.id = mac;
-                climarker.data.popup = popup;
-                climarker.filtered = false;
-                markers.push(climarker);
-                dataCluster.RegisterMarker(climarker);
+                marker.category = 2;
+                marker.weight = 1;
               }
+              markers.push(marker);
+              dataCluster.RegisterMarker(marker);
               dataCluster.ProcessView();
             }// end of for
-            mymap.addLayer( dataCluster ).setView([lat,lon], 18);
+            mymap.addLayer( dataCluster ).setView([lat,lon], 17);
           }); //end of getJSON
         }; //end of getdevs
       }); //end of document.ready
