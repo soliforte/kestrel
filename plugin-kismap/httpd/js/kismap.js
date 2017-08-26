@@ -136,9 +136,10 @@ kismet_ui_tabpane.AddTab({
         }
         dataCluster.RegisterMarker(marker);
       }
-      dataCluster.ProcessView()
+      dataCluster.ProcessView();
       var latlon = _.last(uniqmacs);
       mymap.addLayer( dataCluster ).setView([latlon['LAT'],latlon['LON']], 16);
+      macs = uniqmacs;
     }
 
       //Main routine, this gets devices and plots them
