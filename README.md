@@ -1,10 +1,14 @@
 # kismap
 Mapping plugin for new Kismet API
 
-#Disclaimers
+# Disclaimers
 
 This is based on Leaflet.js and PruneCluster for clustering.
 Thanks to them for their work and making this a lot easier.
+
+# Demo
+
+[Kismap in Action](https://www.youtube.com/watch?v=ntG1sJnQLH0)
 
 # Purpose
 
@@ -20,7 +24,7 @@ A couple of notes: I have not worked out how to prevent duplicate markers, so st
 
 Refreshing the browser clears the map of all markers.
 
-#TODO
+# TODO
 
 Center on operator.
 Draw Drivepath.
@@ -30,7 +34,7 @@ Parse devices and create pins for networks.
   -Only pull devices of interest?
   -Only most recently heard over n time?
 
-#Installation
+# Installation
 
 Still under heavy development, also: I don't know any javascript at all, so if you have suggestions to fix/improve, let me know.
 
