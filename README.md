@@ -5,6 +5,7 @@ Mapping plugin for new Kismet API
 
 This is based on Leaflet.js and PruneCluster for clustering.
 Thanks to them for their work and making this a lot easier.
+Also, a huge thanks to Dragorn (@kismetwireless) for making this whole thing possible, and his help with debugging my crap!
 
 # Demo
 
