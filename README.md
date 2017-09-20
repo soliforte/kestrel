@@ -17,6 +17,8 @@ The intent of this plugin is to add live mapping of networks into the Kismet UI 
 
 # Updates
 
+Realized I had disabled the info flags on the markers. Re-adding those shortly.
+
 Switched map source to mapquest. Map tile sources can be switched by editing the kismap.js and switching the URL, check the Leaflet documentation for accepted sources.
 
 In lieu of centering on current location, I center on the most recently plotted cluster, as those should be the same thing.
