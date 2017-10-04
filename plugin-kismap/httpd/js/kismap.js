@@ -2,6 +2,7 @@
 // Email: soliforte@protonmail.com
 // Git: github.com/soliforte
 // Freeware, enjoy. If you do something really cool with it, let me know. Pull requests encouraged
+
 (
   typeof define === "function" ? function (m) { define("plugin-kismap-js", m); } :
   typeof exports === "object" ? function (m) { module.exports = m(); } :
@@ -130,15 +131,20 @@ kismet_ui_tabpane.AddTab({
         } else if (uniqmacs[i]['TYPE'] == "Wi-Fi Client") {
           marker.category = 2;
           marker.weight = 1;
-        } else {
+        } else if (uniqmacs[i]['TYPE'] == "Wi-Fi Bridged Device"){
           marker.category = 3;
           marker.weight = 1;
+        } else {
+          marker.category = 4;
+          marker.weight = 1;
         }
+        marker.data.popup = uniqmacs[i]['MAC']+'<br>'+uniqmacs[i]['TYPE'];
         dataCluster.RegisterMarker(marker);
       }
       dataCluster.ProcessView();
       var latlon = _.last(uniqmacs);
-      mymap.addLayer( dataCluster ).setView([latlon['LAT'],latlon['LON']], 16);
+
+      mymap.addLayer( dataCluster ); // Temporarily disabled locking-to-location until I figure a way to make it toggle-able. you can re-enable by adding .setView([latlon['LAT'],latlon['LON']], 16) to the end of this line
       macs = uniqmacs;
     }
 
