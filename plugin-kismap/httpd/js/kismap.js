@@ -138,7 +138,7 @@ kismet_ui_tabpane.AddTab({
           marker.category = 4;
           marker.weight = 1;
         }
-        marker.data.popup = uniqmacs[i]['MAC']+'<br>'+uniqmacs[i]['TYPE'];
+        marker.data.popup = uniqmacs[i]['SSID']+'<br>'+uniqmacs[i]['MAC']+'<br>'+uniqmacs[i]['TYPE'];
         dataCluster.RegisterMarker(marker);
       }
       dataCluster.ProcessView();
