@@ -29,13 +29,13 @@ Refreshing the browser clears the map of all markers.
 
 # TODO
 
-~~Center on operator.~~
-Draw Drivepath.
-Cache offline map tiles.
-Parse devices and create pins for networks.
-  -Avoid plotting ALL networks
-  -Only pull devices of interest?
-  -Only most recently heard over n time?
+⋅⋅* ~~Center on operator.~~
+⋅⋅* Draw Drivepath.
+⋅⋅* Cache offline map tiles.
+⋅⋅* Parse devices and create pins for networks.
+⋅⋅*   -Avoid plotting ALL networks
+⋅⋅*   -Only pull devices of interest?
+⋅⋅*   -Only most recently heard over n time?
 
 # Installation
 
