@@ -28,14 +28,10 @@ A couple of notes: I have not worked out how to prevent duplicate markers, so st
 Refreshing the browser clears the map of all markers.
 
 # TODO
-
-⋅⋅* ~~Center on operator.~~
-⋅⋅* Draw Drivepath.
-⋅⋅* Cache offline map tiles.
-⋅⋅* Parse devices and create pins for networks.
-⋅⋅*   -Avoid plotting ALL networks
-⋅⋅*   -Only pull devices of interest?
-⋅⋅*   -Only most recently heard over n time?
+1. ~~Center on operator.~~
+2. Draw Drivepath.
+3. Cache offline map tiles.
+4. Search function
 
 # Installation
 
