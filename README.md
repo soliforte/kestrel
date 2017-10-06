@@ -17,6 +17,8 @@ The intent of this plugin is to add live mapping of networks into the Kismet UI 
 
 # Updates
 
+10-6-2017: Kismap now supports searching! Using the main search bar above the Devices list in the Kismet UI will now also filter and display markers for only those devices. Currently, it is case SENSITIVE... working on that.
+
 Popups have been added back in. By default popups include SSID, MAC, and TYPE of device (wifi AP, Client, Bridge, or Bluetooth).
 Additionally, there is an option with kismap.js to set autocenter on most recent location. This is disable by default as it makes it difficult to interact with the map as it resets the view every couple seconds. Just find the line towards the bottom and uncomment my stuff
 Switched map source to mapquest. Map tile sources can be switched by editing the kismap.js and switching the URL, check the Leaflet documentation for accepted sources.
