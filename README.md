@@ -17,8 +17,8 @@ The intent of this plugin is to add live mapping of networks into the Kismet UI 
 
 # Updates
 
-Realized I had disabled the info flags on the markers. Re-adding those shortly.
-
+Popups have been added back in. By default popups include SSID, MAC, and TYPE of device (wifi AP, Client, Bridge, or Bluetooth).
+Additionally, there is an option with kismap.js to set autocenter on most recent location. This is disable by default as it makes it difficult to interact with the map as it resets the view every couple seconds. Just find the line towards the bottom and uncomment my stuff
 Switched map source to mapquest. Map tile sources can be switched by editing the kismap.js and switching the URL, check the Leaflet documentation for accepted sources.
 
 In lieu of centering on current location, I center on the most recently plotted cluster, as those should be the same thing.
@@ -28,14 +28,10 @@ A couple of notes: I have not worked out how to prevent duplicate markers, so st
 Refreshing the browser clears the map of all markers.
 
 # TODO
-
-Center on operator.
-Draw Drivepath.
-Cache offline map tiles.
-Parse devices and create pins for networks.
-  -Avoid plotting ALL networks
-  -Only pull devices of interest?
-  -Only most recently heard over n time?
+1. ~~Center on operator.~~
+2. Draw Drivepath.
+3. Cache offline map tiles.
+4. Search function
 
 # Installation
 
