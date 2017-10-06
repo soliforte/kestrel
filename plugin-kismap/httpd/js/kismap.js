@@ -121,6 +121,8 @@ kismet_ui_tabpane.AddTab({
       getDevs();
       var uniqmacs = _.uniq(macs, 'MAC');
       dataCluster.RemoveMarkers();
+      var search = document.getElementsByTagName("input")[0].value;
+      console.log(search);
       for ( var i in uniqmacs){
         var marker = new PruneCluster.Marker(uniqmacs[i]['LAT'], uniqmacs[i]['LON']);
         marker.data.id = uniqmacs[i]['MAC'];
@@ -135,12 +137,18 @@ kismet_ui_tabpane.AddTab({
           marker.category = 3;
           marker.weight = 1;
         } else {
-          marker.category = 4;
+          marker.category = 5;
           marker.weight = 1;
-        }
+        };
         marker.data.popup = uniqmacs[i]['SSID']+'<br>'+uniqmacs[i]['MAC']+'<br>'+uniqmacs[i]['TYPE'];
-        dataCluster.RegisterMarker(marker);
-      }
+        if ( uniqmacs[i]['SSID'].includes(search)){
+          dataCluster.RegisterMarker(marker);
+        } else if ( uniqmacs[i]['MAC'].includes(search)){
+          dataCluster.RegisterMarker(marker);
+        } else if ( uniqmacs[i]['TYPE'].includes(search)){
+          dataCluster.RegisterMarker(marker);
+        };
+      };
       dataCluster.ProcessView();
       var latlon = _.last(uniqmacs);
 
