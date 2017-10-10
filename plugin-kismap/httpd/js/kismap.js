@@ -30,6 +30,8 @@ kismet_ui_tabpane.AddTab({
       $(div).append('<script src="/plugin/kismap/js/leaflet.js"></script>');
       $(div).append('<link rel="stylesheet" href="/plugin/kismap/LeafletStyleSheet.css">');
       $(div).append('<script src="/plugin/kismap/js/PruneCluster.js"></script>');
+      $(div).append('<script src="/plugin/kismap/js/leaflet.mouseCoordinate.js">');
+      $(div).append('<link rel="stylesheet" href="/plugin/kismap/leaflet.mouseCoordinate.css">')
       $(div).append('</head>');
       $(div).append('<ul class="side-menu">');
 
@@ -54,7 +56,7 @@ kismet_ui_tabpane.AddTab({
           mymap.locate({setView: true, maxZoom: 15});
       });
       //Once location is found, drop a marker on that location
-
+	L.control.mouseCoordinate({gps:true,position:'bottomright'}).addTo(mymap);
 
       var colors = ['#ff4b00', '#bac900', '#EC1813', '#55BCBE', '#D2204C', '#FF0000', '#ada59a', '#3e647e'],
         pi2 = Math.PI * 2;
