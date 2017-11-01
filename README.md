@@ -1,4 +1,4 @@
-# Kestrel
+# Kestrel ![alt text] (https://github.com/SoliForte/Kestrel/blob/master/Kestrel.png)
 Mapping plugin for new Kismet API
 
 # Disclaimers
