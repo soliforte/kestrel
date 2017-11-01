@@ -1,4 +1,4 @@
-[logo]:https://github.com/SoliForte/Kestrel/blob/master/Kestrel.png
+![logo](https://github.com/SoliForte/Kestrel/blob/master/Kestrel.png)
 # Kestrel 
 Mapping plugin for new Kismet API
 
