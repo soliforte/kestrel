@@ -4,9 +4,9 @@
 // Freeware, enjoy. If you do something really cool with it, let me know. Pull requests encouraged
 
 (
-  typeof define === "function" ? function (m) { define("plugin-kismap-js", m); } :
+  typeof define === "function" ? function (m) { define("plugin-kestrel-js", m); } :
   typeof exports === "object" ? function (m) { module.exports = m(); } :
-  function(m){ this.kismap = m(); }
+  function(m){ this.kestrel = m(); }
 )(function () {
 
   "use strict";
@@ -25,13 +25,13 @@ kismet_ui_tabpane.AddTab({
       $(div).append('<head>');
       $(div).append('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
       $(div).append('<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />');
-      $(div).append('<script src="/plugin/kismap/js/underscore-min.js"></script>');
-      $(div).append('<link rel="stylesheet" href="/plugin/kismap/leaflet.css">');
-      $(div).append('<script src="/plugin/kismap/js/leaflet.js"></script>');
-      $(div).append('<link rel="stylesheet" href="/plugin/kismap/LeafletStyleSheet.css">');
-      $(div).append('<script src="/plugin/kismap/js/PruneCluster.js"></script>');
-      $(div).append('<script src="/plugin/kismap/js/leaflet.mouseCoordinate.js">');
-      $(div).append('<link rel="stylesheet" href="/plugin/kismap/leaflet.mouseCoordinate.css">')
+      $(div).append('<script src="/plugin/kestrel/js/underscore-min.js"></script>');
+      $(div).append('<link rel="stylesheet" href="/plugin/kestrel/leaflet.css">');
+      $(div).append('<script src="/plugin/kestrel/js/leaflet.js"></script>');
+      $(div).append('<link rel="stylesheet" href="/plugin/kestrel/LeafletStyleSheet.css">');
+      $(div).append('<script src="/plugin/kestrel/js/PruneCluster.js"></script>');
+      $(div).append('<script src="/plugin/kestrel/js/leaflet.mouseCoordinate.js">');
+      $(div).append('<link rel="stylesheet" href="/plugin/kestrel/leaflet.mouseCoordinate.css">')
       $(div).append('</head>');
       $(div).append('<ul class="side-menu">');
 
