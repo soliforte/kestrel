@@ -124,7 +124,6 @@ kismet_ui_tabpane.AddTab({
       var uniqmacs = _.uniq(macs, 'MAC');
       dataCluster.RemoveMarkers();
       var search = document.getElementsByTagName("input")[0].value;
-      console.log(search);
       for ( var i in uniqmacs){
         var marker = new PruneCluster.Marker(uniqmacs[i]['LAT'], uniqmacs[i]['LON']);
         marker.data.id = uniqmacs[i]['MAC'];

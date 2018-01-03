@@ -24,7 +24,7 @@ all:	manifest.conf
 install:
 ifeq ("$(plugindir)", "")
 	echo "No kismet install found in pkgconfig, assuming /usr/local"
-	plugindir = "/usr/local/lib/kismet/"
+	plugindir="/usr/local/lib/kismet/"
 endif
 	mkdir -p $(DESTDIR)/$(plugindir)/$(PLUGIN_NAME)
 	$(INSTALL) -o $(INSTUSR) -g $(INSTGRP) -m 444 manifest.conf $(DESTDIR)/$(plugindir)/$(PLUGIN_NAME)/manifest.conf
