@@ -33,8 +33,9 @@ kismet_ui_tabpane.AddTab({
       $(div).append('<script src="/plugin/kestrel/js/leaflet.mouseCoordinate.js">');
       $(div).append('<link rel="stylesheet" href="/plugin/kestrel/leaflet.mouseCoordinate.css">')
       $(div).append('</head>');
-      $(div).append('<ul class="side-menu">');
-
+      $(div).append('<ul class="side-menu"></ul>');
+      $(div).append('<div id="controls"></div>')
+      $('#controls').append('<span>Test</span>')
       //Instantiate cluster for le clustering of devices
       var dataCluster = new PruneClusterForLeaflet();
       //Build custom ClusterIcon
@@ -46,7 +47,7 @@ kismet_ui_tabpane.AddTab({
       };
 
       //Instantiate map
-      var mymap = L.map('mapid').setView([40.775,-73.972], 15);
+      var mymap = L.map('mapid').setView([39.180462, -76.628983], 15);
             L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     maxZoom: 19,
                     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -56,7 +57,7 @@ kismet_ui_tabpane.AddTab({
           mymap.locate({setView: true, maxZoom: 15});
       });
       //Once location is found, drop a marker on that location
-	L.control.mouseCoordinate({gps:true,position:'bottomright'}).addTo(mymap);
+	     L.control.mouseCoordinate({gps:true,position:'bottomright'}).addTo(mymap);
 
       var colors = ['#ff4b00', '#bac900', '#EC1813', '#55BCBE', '#D2204C', '#FF0000', '#ada59a', '#3e647e'],
         pi2 = Math.PI * 2;
@@ -112,11 +113,10 @@ kismet_ui_tabpane.AddTab({
             canvas.fillText(this.population, 22, 22, 40);
         }
     });
-    var markers = [];
     var macs = [];
 
     $(window).ready( function() {
-     setInterval(addDevs, 5000);
+     setInterval(addDevs, 1000);
     });
 
     function addDevs() {
@@ -155,21 +155,25 @@ kismet_ui_tabpane.AddTab({
 
       mymap.addLayer( dataCluster ); // Temporarily disabled locking-to-location until I figure a way to make it toggle-able. you can re-enable by adding .setView([latlon['LAT'],latlon['LON']], 16) to the end of this line
       macs = uniqmacs;
+      document.cookie = uniqmacs;
     }
 
       //Main routine, this gets devices and plots them
     function getDevs() {
-      //Get devices within the last n seconds. Make this throttle-able with a form??
-      var newmarkers =[];
-      //var newmacs = [];
       $.getJSON("/devices/last-time/-20/devices.json").done(function(devs) {
+        var ssid = ""
+        var type = ""
+        var mac = ""
+        var rssi = ""
+        var lat = ""
+        var lon = ""
           for (var x = 0; x < devs.length; x++) {
-            var ssid = devs[x]['kismet.device.base.name'];
-            var type = devs[x]['kismet.device.base.type'];
-            var mac = devs[x]['kismet.device.base.macaddr'];
-            var rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
-            var lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lat'];
-            var lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lon'];
+            ssid = devs[x]['kismet.device.base.name'];
+            type = devs[x]['kismet.device.base.type'];
+            mac = devs[x]['kismet.device.base.macaddr'];
+            rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
+            lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lat'];
+            lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lon'];
             var device = {SSID: ssid, TYPE: type, MAC: mac, RSSI: rssi, LAT: lat, LON: lon};
             macs.push(device);
           }// end of for
