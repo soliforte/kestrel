@@ -114,10 +114,31 @@ kismet_ui_tabpane.AddTab({
         }
     });
     var macs = [];
-
+    getOldDevs();
     $(window).ready( function() {
      setInterval(addDevs, 1000);
     });
+
+    function getOldDevs() {
+      $.getJSON("/devices/last-time/1/devices.json").done(function(devs) {
+        var ssid = ""
+        var type = ""
+        var mac = ""
+        var rssi = ""
+        var lat = ""
+        var lon = ""
+          for (var x = 0; x < devs.length; x++) {
+            ssid = devs[x]['kismet.device.base.name'];
+            type = devs[x]['kismet.device.base.type'];
+            mac = devs[x]['kismet.device.base.macaddr'];
+            rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
+            lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lat'];
+            lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lon'];
+            var device = {SSID: ssid, TYPE: type, MAC: mac, RSSI: rssi, LAT: lat, LON: lon};
+            macs.push(device);
+          }// end of for
+        }); //end of getJSON
+      }; //end of getdevs
 
     function addDevs() {
       getDevs();
@@ -152,10 +173,9 @@ kismet_ui_tabpane.AddTab({
       };
       dataCluster.ProcessView();
       var latlon = _.last(uniqmacs);
-
       mymap.addLayer( dataCluster ); // Temporarily disabled locking-to-location until I figure a way to make it toggle-able. you can re-enable by adding .setView([latlon['LAT'],latlon['LON']], 16) to the end of this line
       macs = uniqmacs;
-      document.cookie = uniqmacs;
+      $.cookie("storedmacs", JSON.stringify(macs));
     }
 
       //Main routine, this gets devices and plots them
