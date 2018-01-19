@@ -47,7 +47,7 @@ kismet_ui_tabpane.AddTab({
       };
 
       //Instantiate map
-      var mymap = L.map('mapid').setView([39.180462, -76.628983], 15);
+      var mymap = L.map('mapid').setView([38.80935, -77.05004], 15);
             L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     maxZoom: 19,
                     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -181,7 +181,7 @@ kismet_ui_tabpane.AddTab({
       }; //end of getdevs
     }); //end of document.ready
   }, //end of function(div)
-   priority:    -999,
+   priority:    -998,
  }); //End of createCallback
 // We're done loading
 exports.load_complete = 1;
