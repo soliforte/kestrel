@@ -125,6 +125,7 @@ kismet_ui_tabpane.AddTab({
         var type = ""
         var mac = ""
         var rssi = ""
+        var manuf = ""
         var lat = ""
         var lon = ""
           for (var x = 0; x < devs.length; x++) {
@@ -132,9 +133,10 @@ kismet_ui_tabpane.AddTab({
             type = devs[x]['kismet.device.base.type'];
             mac = devs[x]['kismet.device.base.macaddr'];
             rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
+            manuf = devs[x]['kismet.device.base.manuf']
             lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lat'];
             lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lon'];
-            var device = {SSID: ssid, TYPE: type, MAC: mac, RSSI: rssi, LAT: lat, LON: lon};
+            var device = {SSID: ssid, TYPE: type, MAC: mac, RSSI: rssi, LAT: lat, LON: lon, MANUF: manuf};
             macs.push(device);
           }// end of for
         }); //end of getJSON
@@ -150,19 +152,56 @@ kismet_ui_tabpane.AddTab({
         marker.data.id = uniqmacs[i]['MAC'];
         marker.filtered = false;
         if (uniqmacs[i]['TYPE'] == "Wi-Fi AP"){
+          marker.data.icon = L.icon({
+            iconUrl: '/plugin/kestrel/images/ic_router_black_24dp_1x.png',
+            iconSize:     [24, 24],
+          });
           marker.category = 1;
           marker.weight = 1;
-        } else if (uniqmacs[i]['TYPE'] == "Wi-Fi Client") {
+        } else if (uniqmacs[i]['TYPE'] == "Wi-Fi Client"){
+          marker.data.icon = L.icon({
+            iconUrl: '/plugin/kestrel/images/ic_laptop_chromebook_black_24dp_1x.png',
+            iconSize:     [24, 24],
+          });
           marker.category = 2;
           marker.weight = 1;
-        } else if (uniqmacs[i]['TYPE'] == "Wi-Fi Bridged Device"){
+        } else if (uniqmacs[i]['TYPE'] == "Wi-Fi Bridged"){
+          marker.data.icon = L.icon({
+            iconUrl: '/plugin/kestrel/images/ic_power_input_black_24dp_1x.png',
+            iconSize:     [24, 24],
+          });
           marker.category = 3;
           marker.weight = 1;
-        } else {
+        } else if (uniqmacs[i]['TYPE'] == "Wi-Fi WDS"){
+          marker.data.icon = L.icon({
+            iconUrl: '/plugin/kestrel/images/ic_leak_add_black_24dp_1x.png',
+            iconSize:     [24, 24],
+          });
+          marker.category = 3;
+          marker.weight = 1;
+        } else if (uniqmacs[i]['TYPE'] == "Wi-Fi Ad-Hoc"){
+          marker.data.icon = L.icon({
+            iconUrl: '/plugin/kestrel/images/ic_cast_connected_black_24dp_1x.png',
+            iconSize:     [24, 24],
+          });
+          marker.category = 3;
+          marker.weight = 1;
+        } else if (uniqmacs[i]['TYPE'] == "Wi-Fi Device"){
+          marker.data.icon = L.icon({
+            iconUrl: '/plugin/kestrel/images/ic_network_check_black_24dp_1x.png',
+            iconSize:     [24, 24],
+          });
+          marker.category = 3;
+          marker.weight = 1;
+        }else {
+          marker.data.icon = L.icon({
+            iconUrl: '/plugin/kestrel/images/ic_bluetooth_black_24dp_1x.png',
+            iconSize:     [24, 24]
+          });
           marker.category = 5;
           marker.weight = 1;
         };
-        marker.data.popup = uniqmacs[i]['SSID']+'<br>'+uniqmacs[i]['MAC']+'<br>'+uniqmacs[i]['TYPE'];
+        marker.data.popup = 'SSID: '+uniqmacs[i]['SSID']+'<br>MAC: '+uniqmacs[i]['MAC']+'<br>Manufacturer: '+uniqmacs[i]['MANUF']+'<br>Type: '+uniqmacs[i]['TYPE'];
         if ( uniqmacs[i]['SSID'].includes(search)){
           dataCluster.RegisterMarker(marker);
         } else if ( uniqmacs[i]['MAC'].includes(search)){
@@ -175,7 +214,7 @@ kismet_ui_tabpane.AddTab({
       var latlon = _.last(uniqmacs);
       mymap.addLayer( dataCluster ); // Temporarily disabled locking-to-location until I figure a way to make it toggle-able. you can re-enable by adding .setView([latlon['LAT'],latlon['LON']], 16) to the end of this line
       macs = uniqmacs;
-      $.cookie("storedmacs", JSON.stringify(macs));
+      //$.cookie("storedmacs", JSON.stringify(macs));
     }
 
       //Main routine, this gets devices and plots them
@@ -184,6 +223,7 @@ kismet_ui_tabpane.AddTab({
         var ssid = ""
         var type = ""
         var mac = ""
+        var manuf = ""
         var rssi = ""
         var lat = ""
         var lon = ""
@@ -191,12 +231,21 @@ kismet_ui_tabpane.AddTab({
             ssid = devs[x]['kismet.device.base.name'];
             type = devs[x]['kismet.device.base.type'];
             mac = devs[x]['kismet.device.base.macaddr'];
+            manuf = devs[x]['kismet.device.base.manuf']
             rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
-            lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lat'];
-            lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lon'];
-            var device = {SSID: ssid, TYPE: type, MAC: mac, RSSI: rssi, LAT: lat, LON: lon};
+            if (typeof(devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']) == 'undefined'){
+              console.log(devs[x])
+              lat = devs[x]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lat'];
+              lon = devs[x]['kismet.device.base.signal']['kismet.common.signal.peak_loc']['kismet.common.location.lon'];
+            } else {
+              lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lat'];
+              lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lon'];
+            }
+            var device = {SSID: ssid, TYPE: type, MAC: mac, RSSI: rssi, LAT: lat, LON: lon, MANUF: manuf};
             macs.push(device);
           }// end of for
+        }).fail(function(res){
+          console.log("getDevs failed! ", res)
         }); //end of getJSON
       }; //end of getdevs
     }); //end of document.ready
