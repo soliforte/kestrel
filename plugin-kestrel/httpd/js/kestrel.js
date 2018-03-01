@@ -109,10 +109,36 @@ kismet_ui_tabpane.AddTab({
         }
     });
     var macs = [];
+    var drivepath = [];
     getOldDevs();
     $(window).ready( function() {
      setInterval(addDevs, 1000);
     });
+
+    $(window).ready( function() {
+     setInterval(getCurrentLocation, 1000);
+    });
+
+    function getCurrentLocation(){
+      $.getJSON("/gps/location.json").done(function(loc){
+        var lat = loc['kismet.common.location.lat']
+        var lon = loc['kismet.common.location.lon']
+        var alt = loc['kismet.common.location.alt']
+        var speed = loc['kismet.common.location.speed']
+        var heading = loc['kismet.common.location.heading']
+        var fix = loc['kismet.common.location.fix']
+        var locval = loc['kismet.common.location.valid']
+        var loctime = loc['kismet.common.location.time_sec']
+        var loctimeu = loc['kismet.common.location.time_usec']
+        var gpsuuid = loc['kismet.common.location.gps_uuid']
+        var newloc = [lat, lon]
+        drivepath.push(newloc)
+        var mappath = L.polyline(drivepath, {color: 'blue', smoothFactor: 1,})
+        mymap.removeLayer(mappath)
+        mymap.fitBounds(mappath.getBounds())
+        mappath.addTo(mymap)
+      })
+    }
 
     function getOldDevs() {
       $.getJSON("/devices/last-time/1/devices.json").done(function(devs) {
