@@ -22,7 +22,6 @@ kismet_ui_tabpane.AddTab({
 	createCallback: function(div) {
     $(document).ready( function() {
 
-      $(div).append('<head>');
       $(div).append('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
       $(div).append('<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />');
       $(div).append('<script src="/plugin/kestrel/js/underscore-min.js"></script>');
@@ -31,11 +30,9 @@ kismet_ui_tabpane.AddTab({
       $(div).append('<link rel="stylesheet" href="/plugin/kestrel/LeafletStyleSheet.css">');
       $(div).append('<script src="/plugin/kestrel/js/PruneCluster.js"></script>');
       $(div).append('<script src="/plugin/kestrel/js/leaflet.mouseCoordinate.js">');
-      $(div).append('<link rel="stylesheet" href="/plugin/kestrel/leaflet.mouseCoordinate.css">')
-      $(div).append('</head>');
-      $(div).append('<ul class="side-menu"></ul>');
-      $(div).append('<div id="controls"></div>')
-      $('#controls').append('<span>Test</span>')
+      $(div).append('<link rel="stylesheet" href="/plugin/kestrel/js/leaflet.mouseCoordinate.css">')
+      //$(div).append('<style> #controls { position: absolute; border: 1px, solid; top: 10px; left: 10px; z-index: 99; }</style>')
+      //$(div).append('<div id="controls"></div>'
       //Instantiate cluster for le clustering of devices
       var dataCluster = new PruneClusterForLeaflet();
       //Build custom ClusterIcon
@@ -56,8 +53,6 @@ kismet_ui_tabpane.AddTab({
       $( window ).ready( function(){
           mymap.locate({setView: true, maxZoom: 15});
       });
-      //Once location is found, drop a marker on that location
-	     L.control.mouseCoordinate({gps:true,position:'bottomright'}).addTo(mymap);
 
       var colors = ['#ff4b00', '#bac900', '#EC1813', '#55BCBE', '#D2204C', '#FF0000', '#ada59a', '#3e647e'],
         pi2 = Math.PI * 2;
@@ -193,7 +188,21 @@ kismet_ui_tabpane.AddTab({
           });
           marker.category = 3;
           marker.weight = 1;
-        }else {
+        } else if (uniqmacs[i]['TYPE'] == ""){
+          marker.data.icon = L.icon({
+            iconUrl: '/plugin/kestrel/images/ic_network_check_black_24dp_1x.png',
+            iconSize:     [24, 24],
+          });
+          marker.category = 3;
+          marker.weight = 1;
+        } else if (uniqmacs[i]['TYPE'] == "Wi-Fi Client"){
+          marker.data.icon = L.icon({
+            iconUrl: '/plugin/kestrel/images/ic_laptop_chromebook_black_24dp_1x.png',
+            iconSize:     [24, 24],
+          });
+          marker.category = 3;
+          marker.weight = 1;
+        } else {
           marker.data.icon = L.icon({
             iconUrl: '/plugin/kestrel/images/ic_bluetooth_black_24dp_1x.png',
             iconSize:     [24, 24]
