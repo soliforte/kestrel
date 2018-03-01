@@ -115,9 +115,9 @@ kismet_ui_tabpane.AddTab({
      setInterval(addDevs, 1000);
     });
 
-    $(window).ready( function() {
+    /**$(window).ready( function() {
      setInterval(getCurrentLocation, 1000);
-    });
+   });**/
 
     function getCurrentLocation(){
       $.getJSON("/gps/location.json").done(function(loc){
