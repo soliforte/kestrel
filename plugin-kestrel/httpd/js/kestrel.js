@@ -155,8 +155,8 @@ kismet_ui_tabpane.AddTab({
             mac = devs[x]['kismet.device.base.macaddr'];
             rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
             manuf = devs[x]['kismet.device.base.manuf']
-            lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lat'];
-            lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.lon'];
+            lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.geopoint'][1];
+	    lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.geopoint'][0];
             var device = {SSID: ssid, TYPE: type, MAC: mac, RSSI: rssi, LAT: lat, LON: lon, MANUF: manuf};
             macs.push(device);
           }// end of for
@@ -268,8 +268,8 @@ kismet_ui_tabpane.AddTab({
             mac = devs[x]['kismet.device.base.macaddr'];
             manuf = devs[x]['kismet.device.base.manuf']
             rssi = devs[x]['kismet.device.base.signal']['kismet.common.signal.max_signal_dbm']; //Last signal dBm
-            lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.geopoint'][0];
-            lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.geopoint'][1];
+            lat = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.geopoint'][1];
+            lon = devs[x]['kismet.device.base.location']['kismet.common.location.avg_loc']['kismet.common.location.geopoint'][0];
             var device = {SSID: ssid, TYPE: type, MAC: mac, RSSI: rssi, LAT: lat, LON: lon, MANUF: manuf};
             macs.push(device);
           }// end of for
