@@ -17,9 +17,63 @@
     filter: var(--map-tiles-filter, none);
 }
 
-/* The black Material icons vanish on inverted dark tiles. */
-[data-theme="dark"] .kestrel-device-icon {
-    filter: invert(1);
+/* Device markers: security fill, band ring, type glyph, generation badge. */
+.kestrel-divicon {
+    background: none;
+    border: none;
+}
+
+.kestrel-marker {
+    position: relative;
+    width: 26px;
+    height: 26px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 2.5px solid var(--ring, #ffffff);
+    background: var(--fill, #78909c);
+    color: #ffffff;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.kestrel-marker img {
+    width: 14px;
+    height: 14px;
+}
+
+.kestrel-badge {
+    position: absolute;
+    right: -7px;
+    bottom: -5px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 2px;
+    box-sizing: border-box;
+    border-radius: 8px;
+    border: 1px solid #ffffff;
+    background: #212121;
+    color: #ffffff;
+    font: bold 9px/13px sans-serif;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.kestrel-lock {
+    position: absolute;
+    left: -5px;
+    top: -5px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 1px solid #ffffff;
+    background: #212121;
+    color: #ffffff;
+    font-size: 7px;
+    line-height: 11px;
+    text-align: center;
 }
 
 #kestrel_map_tab {
@@ -97,6 +151,18 @@
     height: 10px;
     margin-right: 3px;
     border-radius: 50%;
+    vertical-align: middle;
+    box-sizing: border-box;
+}
+
+.kestrel-legend .swatch.ring {
+    border: 2.5px solid;
+    background: transparent;
+}
+
+.kestrel-legend .kestrel-badge {
+    position: static;
+    display: inline-block;
     vertical-align: middle;
 }
 

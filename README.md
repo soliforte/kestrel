@@ -5,15 +5,16 @@ Live mapping of located devices, directly inside the Kismet web UI.
 ![logo](https://github.com/SoliForte/Kestrel/blob/master/Kestrel.png)
 
 Kestrel adds a **Map** tab to the main Kismet pane.  Every device Kismet has a
-GPS location for is plotted with a type-specific icon, clustered when zoomed
-out, and refreshed live as Kismet sees new devices.  The map filters with the
-main device search box, popups link into Kismet's device details window, and
-the GPS position and drive path are drawn as Kismet reports them.
+GPS location for is plotted as a marker colour-coded by security, band and
+Wi-Fi generation, clustered when zoomed out, and refreshed live as Kismet
+sees new devices.  A filter box narrows the map, popups link into Kismet's
+device details window, and the GPS position and drive path are drawn as
+Kismet reports them.
 
-Built on [Leaflet](https://leafletjs.com) (shipped with Kismet) and
-[PruneCluster](https://github.com/SINTEF-9012/PruneCluster).  Thanks to both
-projects, and a huge thanks to Dragorn (@kismetwireless) for making the plugin
-system possible and for his help debugging.
+Built on [Leaflet](https://leafletjs.com) and Font Awesome, both shipped with
+Kismet, and [PruneCluster](https://github.com/SINTEF-9012/PruneCluster).
+Thanks to those projects, and a huge thanks to Dragorn (@kismetwireless) for
+making the plugin system possible and for his help debugging.
 
 [Kestrel in action (original release)](https://www.youtube.com/watch?v=ntG1sJnQLH0)
 
@@ -30,33 +31,66 @@ Clone this repository:
     git clone https://github.com/soliforte/kestrel
     cd kestrel/plugin-kestrel
 
-Install system-wide (into Kismet's plugin directory, found via pkg-config or
-the Kismet source tree in `/usr/src/kismet`):
+Kismet only scans for plugins at startup, and it looks in two places: the
+system plugin directory and `~/.kismet/plugins` in the home directory of
+**the user Kismet runs as**.  Pick the install that matches how you start
+Kismet.
+
+**Kismet runs as root** (`sudo kismet`, or the default systemd service),
+which is the usual case since capture needs root.  Install system-wide:
 
     sudo make install
 
-Or install for the user who runs Kismet only:
+The system plugin directory comes from `pkg-config --variable=plugindir
+kismet`, or from the Kismet source tree in `/usr/src/kismet`, falling back to
+`/usr/local/lib/kismet`.  If that directory is writable by your user (Homebrew
+on macOS, for example) you can skip `sudo` and set the file ownership to
+yourself:
+
+    make install INSTUSR=$(id -un) INSTGRP=$(id -gn)
+
+Do not use `make userinstall` for a root Kismet: it installs into *your*
+`~/.kismet/plugins`, which root never reads.
+
+**Kismet runs as your user** (for example replaying logs, or a setup with the
+capture helpers running privileged separately).  Install for that user only:
 
     make userinstall
 
-Restart Kismet, open the web UI, and the **Map** tab appears next to
-**Devices**.
+Then restart Kismet, open the web UI, and the **Map** tab appears next to
+**Devices**.  Kismet's startup messages list each plugin it loads; if the tab
+is missing, look there for a "Plugin 'Kestrel' loaded" line or a "Did not
+find a user plugin directory" warning pointing at the wrong home.
 
 ## Using it
 
 - **Tile consent.** The first time the map opens it warns that map tiles will
   be fetched from the Internet.  Tick "Don't warn me again" to skip it.
 - **Filter.** The box at the top right of the map shows only matching devices
-  (case-insensitive; matches name, MAC, type, manufacturer and PHY).  A search
-  typed into the Devices tab is carried over to the map filter when you switch
-  to the Map tab and the map filter is empty.
-- **Popups.** Click a marker for name, MAC, type, manufacturer, signal and
-  last-seen time, plus a link to the full device details window.
+  (case-insensitive; matches name, MAC, type, manufacturer, PHY, security,
+  channel, band and Wi-Fi generation, so "open", "5 GHz" or "wi-fi 6" work).
+  A search typed into the Devices tab is carried over to the map filter when
+  you switch to the Map tab and the map filter is empty.
+- **Markers.** Each device is a coloured disc.  The fill is its security
+  class (red Open, orange WEP, yellow WPA, green WPA2, teal WPA3, grey
+  unknown), the ring is its band (amber 2.4 GHz, blue 5 GHz, purple 6 GHz),
+  the glyph is its type (access point, client, bridge, WDS, ad-hoc,
+  Bluetooth), a padlock marks enterprise (802.1X) networks, and a badge shows
+  the Wi-Fi generation.  Cluster pies use the same security colours.
+- **Wi-Fi generation.** Kismet does not decode 802.11ax/be, so the badge is
+  inferred.  A plain number is exact; a trailing `+` means "at least" and
+  comes from the channel width and band.  Setting `dot11_keep_ietags=true` in
+  `kismet_80211.conf` makes Kismet keep each beacon's IE tag list, which lets
+  Kestrel tell Wi-Fi 4 from 5 exactly and spot Wi-Fi 6 or newer.
+- **Popups.** Click a marker for name, MAC, type, manufacturer, security,
+  channel and band, Wi-Fi generation, signal and last-seen time, plus a link
+  to the full device details window.
 - **Map controls** (top right): follow the GPS position, show or hide the
   drive path, fit the view to all shown devices, clear the drive path.
   Dragging the map turns off follow mode.
-- **Legend** (bottom right) explains the cluster pie colours; the status line
-  (bottom left) shows how many devices are plotted and when they last updated.
+- **Legend** (bottom right) explains the security colours, band rings and
+  generation badge; the status line (bottom left) shows how many devices are
+  plotted and when they last updated.
 - The map view is remembered across reloads.
 
 ## Settings
@@ -87,8 +121,9 @@ Open Kismet's **Settings** and pick **Kestrel Map** to change:
 ## Development
 
 Everything lives in `plugin-kestrel/httpd/js/kestrel.js` and
-`plugin-kestrel/httpd/css/kestrel.css`.  There is no build step; `make
-userinstall` copies the files and a browser reload picks them up.
+`plugin-kestrel/httpd/css/kestrel.css`.  There is no build step; re-run the
+install target and reload the browser to pick up changes (Kismet serves the
+files from disk, so no restart is needed).
 
 This was the author's first JavaScript.  Suggestions and pull requests are
 very welcome.
