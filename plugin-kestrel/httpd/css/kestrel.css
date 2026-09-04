@@ -1,0 +1,125 @@
+/* Kestrel map styling.  Theme variables follow Kismet's data-theme attribute. */
+
+:root {
+    --kestrel-panel-bg: #ffffff;
+    --kestrel-panel-fg: #222222;
+    --kestrel-panel-border: #888888;
+}
+
+[data-theme="dark"] {
+    --kestrel-panel-bg: #222222;
+    --kestrel-panel-fg: #eeeeee;
+    --kestrel-panel-border: #555555;
+    --map-tiles-filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+}
+
+.map-tiles {
+    filter: var(--map-tiles-filter, none);
+}
+
+/* The black Material icons vanish on inverted dark tiles. */
+[data-theme="dark"] .kestrel-device-icon {
+    filter: invert(1);
+}
+
+#kestrel_map_tab {
+    overflow: hidden !important;
+}
+
+#kestrel_holder {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+#kestrel_map {
+    width: 100%;
+    height: 100%;
+}
+
+.kestrel-warning {
+    position: absolute;
+    top: 10%;
+    left: 25%;
+    right: 25%;
+    z-index: 500;
+    padding: 10px;
+    border: 1px solid var(--kestrel-panel-border);
+    background: var(--kestrel-panel-bg);
+    color: var(--kestrel-panel-fg);
+}
+
+.kestrel-control {
+    padding: 6px 10px;
+    font: 12px sans-serif;
+    line-height: 1.8;
+    background: var(--kestrel-panel-bg);
+    color: var(--kestrel-panel-fg);
+}
+
+.kestrel-control label {
+    display: block;
+    white-space: nowrap;
+}
+
+.kestrel-control input[type="search"] {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.kestrel-control button {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+}
+
+.kestrel-legend,
+.kestrel-status {
+    padding: 3px 6px;
+    font: 11px sans-serif;
+    border-radius: 3px;
+    background: var(--kestrel-panel-bg);
+    color: var(--kestrel-panel-fg);
+    opacity: 0.9;
+}
+
+.kestrel-legend span {
+    margin-right: 8px;
+    white-space: nowrap;
+}
+
+.kestrel-legend .swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 3px;
+    border-radius: 50%;
+    vertical-align: middle;
+}
+
+.kestrel-popup {
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* PruneCluster marker animation */
+.prunecluster {
+    font-size: 12px;
+    border-radius: 20px;
+    transition: all 0.3s linear;
+}
+
+.leaflet-marker-icon.prunecluster-anim,
+.leaflet-marker-shadow.prunecluster-anim,
+.leaflet-markercluster-icon.prunecluster-anim {
+    transition: all 0.3s linear;
+}
+
+.leaflet-zoom-anim .leaflet-zoom-animated.leaflet-marker-icon,
+.leaflet-zoom-anim .leaflet-zoom-animated.leaflet-marker-shadow,
+.leaflet-zoom-anim .leaflet-zoom-animated.leaflet-markercluster-icon {
+    transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+}
