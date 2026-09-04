@@ -61,6 +61,80 @@
     white-space: nowrap;
 }
 
+/* Drones at their broadcast position: a rotated disc with a nose marker. */
+.kestrel-marker svg,
+.kestrel-drone svg {
+    width: 15px;
+    height: 15px;
+}
+
+.kestrel-drone {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 3px solid #ffffff;
+    background: var(--c, #ff1744);
+    color: #212121;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 2px var(--c, #ff1744), 0 2px 5px rgba(0, 0, 0, 0.7);
+    transition: opacity 0.5s;
+}
+
+.kestrel-drone svg {
+    width: 18px;
+    height: 18px;
+}
+
+.kestrel-drone.stale {
+    opacity: 0.45;
+}
+
+.kestrel-drone-nose {
+    position: absolute;
+    top: -11px;
+    left: 50%;
+    width: 0;
+    height: 0;
+    margin-left: -6px;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 9px solid var(--c, #ff1744);
+}
+
+.kestrel-drone-aux {
+    width: 18px;
+    height: 18px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 2px solid var(--c, #ff1744);
+    background: #ffffff;
+    color: #212121;
+    font-size: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.kestrel-legend-drone {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 3px;
+    vertical-align: middle;
+    color: var(--kestrel-panel-fg);
+}
+
+.kestrel-legend-drone svg {
+    width: 12px;
+    height: 12px;
+    display: block;
+}
+
 .kestrel-lock {
     position: absolute;
     left: -5px;

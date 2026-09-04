@@ -29,9 +29,11 @@ const DEFAULTS = {
     'kestrel.tiles.url': 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     'kestrel.tiles.attribution': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     'kestrel.tiles.maxzoom': 19,
-    'kestrel.poll.interval': 5,
+    'kestrel.poll.interval': 2,
     'kestrel.drivepath.enabled': true,
     'kestrel.follow.enabled': false,
+    'kestrel.drones.enabled': true,
+    'kestrel.drones.jump': true,
     'kestrel.maps_ok': false,
 };
 
@@ -47,6 +49,18 @@ const MAX_PATH_POINTS = 20000;
 // full resync catches everything else: devices Kismet expired, records whose
 // location arrived late, and log replays whose packets carry old timestamps.
 const FULL_RESYNC_SECONDS = 60;
+
+// Polling adapts to the server: when a request takes longer than half the
+// configured interval the effective interval doubles, up to this cap, and
+// decays back once responses are quick again.  Kismet's own device table
+// polls every second, so the configured rate is not unusual load; this
+// protects a small server or a slow link from a pile-up.
+const MAX_BACKOFF_SECONDS = 30;
+
+// Kismet's device monitor websocket would be the ideal feed, but in 2025.09
+// its change detection compares against a dangling stack variable and drops
+// nearly all updates, so new devices come from the eventbus and everything
+// else from polling.
 
 // ---------------------------------------------------------------------------
 // Device fields and marker styling
@@ -69,7 +83,51 @@ const DEVICE_FIELDS = [
     ['dot11.device/dot11.device.last_beaconed_ssid_record/dot11.advertisedssid.ht_mode', 'ht'],
     // Only populated when kismet.conf has dot11_keep_ietags=true.
     ['dot11.device/dot11.device.last_beaconed_ssid_record/dot11.advertisedssid.ie_tag_list', 'ietags'],
+    // UAV records from Kismet's drone PHY (DJI DroneID over Wi-Fi or RF).
+    // Only the position and serial come from Wi-Fi DroneID; the rest is
+    // filled in by RF capture (ANTSDR) and stays 0 otherwise.
+    ['uav.device/uav.manufacturer', 'uav_manuf'],
+    ['uav.device/uav.model', 'uav_model'],
+    ['uav.device/uav.serialnumber', 'uav_serial'],
+    ['uav.device/uav.match_type', 'uav_match'],
+    ['uav.device/uav.last_telemetry/uav.telemetry.location/kismet.common.location.geopoint', 'uav_pos'],
+    ['uav.device/uav.last_telemetry/uav.telemetry.location/kismet.common.location.alt', 'uav_alt'],
+    ['uav.device/uav.last_telemetry/uav.telemetry.location/kismet.common.location.fix', 'uav_fix'],
+    ['uav.device/uav.last_telemetry/uav.telemetry.height', 'uav_height'],
+    ['uav.device/uav.last_telemetry/uav.telemetry.yaw', 'uav_yaw'],
+    ['uav.device/uav.last_telemetry/uav.telemetry.v_north', 'uav_vn'],
+    ['uav.device/uav.last_telemetry/uav.telemetry.v_east', 'uav_ve'],
+    ['uav.device/uav.last_telemetry/uav.telemetry.v_up', 'uav_vu'],
+    ['uav.device/uav.last_telemetry/uav.telemetry.airborne', 'uav_airborne'],
+    ['uav.device/uav.last_telemetry/uav.telemetry.motor_on', 'uav_motor'],
+    ['uav.device/uav.telemetry.home_location/kismet.common.location.geopoint', 'uav_home'],
+    ['uav.device/uav.telemetry.app_location/kismet.common.location.geopoint', 'uav_operator'],
+    ['uav.device/uav.telemetry_history', 'uav_history'],
 ];
+
+// ---------------------------------------------------------------------------
+// Drones
+// ---------------------------------------------------------------------------
+
+// Drones are drawn where they say they are (their broadcast telemetry), not
+// where Kismet heard them, so they live outside the device cluster.
+const DRONE_COLORS = ['#ff1744', '#00e5ff', '#ffea00', '#76ff03', '#ff9100', '#e040fb'];
+const DRONE_STALE_SECONDS = 60;
+const DRONE_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' +
+    '<circle cx="5" cy="5" r="3"/><circle cx="19" cy="5" r="3"/>' +
+    '<circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/>' +
+    '<path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/>' +
+    '<rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor"/></svg>';
+
+function hasPoint(gp) {
+    return Array.isArray(gp) && gp.length === 2 && !(gp[0] === 0 && gp[1] === 0);
+}
+
+function num(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+}
 
 // A marker is a coloured disc: the fill is the security class (also the
 // cluster pie category), the ring is the frequency band, the glyph is the
@@ -191,15 +249,19 @@ function markerIcon(rec) {
     const sec = SECURITY[rec.security];
     const band = rec.band != null ? BANDS[rec.band] : null;
     const isBluetooth = rec.phy === 'Bluetooth' || rec.phy === 'BTLE';
-    const glyph = GLYPHS[rec.type] || (isBluetooth ? 'bluetooth' : 'fa-microchip');
+    const glyph = rec.uav != null ? 'drone' : (GLYPHS[rec.type] || (isBluetooth ? 'bluetooth' : 'fa-microchip'));
     const badge = rec.gen != null && rec.gen !== 'legacy' ? rec.gen : '';
     const key = [sec.key, rec.band, glyph, badge, rec.enterprise].join('|');
 
     let icon = iconCache.get(key);
     if (icon == null) {
-        const inner = glyph === 'bluetooth'
-            ? `<img src="${local_uri_prefix}images/bluetooth-solid-icon-dark.svg" alt="">`
-            : `<i class="fa ${glyph}"></i>`;
+        let inner;
+        if (glyph === 'bluetooth')
+            inner = `<img src="${local_uri_prefix}images/bluetooth-solid-icon-dark.svg" alt="">`;
+        else if (glyph === 'drone')
+            inner = DRONE_SVG;
+        else
+            inner = `<i class="fa ${glyph}"></i>`;
         const html =
             `<div class="kestrel-marker" style="--fill:${sec.color};--ring:${band ? band.color : '#ffffff'}">` +
             inner +
@@ -277,8 +339,17 @@ let statusControl = null;
 // device key -> { key, mac, name, type, phy, manuf, signal, last_time, lat, lon, marker }
 const devices = new Map();
 
+// device key -> { key, color, pos, marker, track, home, operator, link, group, ... }
+const drones = new Map();
+let droneLayer = null;
+let droneColorNext = 0;
+
 let pollTimer = null;
+let pollInFlight = false;
 let lastFullLoad = 0;
+let backoffFactor = 1;
+let effectiveInterval = 0;
+const stats = { polls: 0, fullLoads: 0, pushed: 0, lastPollMs: 0 };
 let viewInitialized = false;
 let lastUpdate = null;
 let lastPathPoint = null;
@@ -395,6 +466,10 @@ async function startMap() {
         radius: 7, color: '#ffffff', weight: 2, fillColor: '#1e88e5', fillOpacity: 1,
     });
 
+    droneLayer = L.layerGroup();
+    if (setting('kestrel.drones.enabled'))
+        droneLayer.addTo(map);
+
     follow = setting('kestrel.follow.enabled');
 
     addControls();
@@ -415,7 +490,33 @@ async function startMap() {
 
     kismet_ui_base.SubscribeEventbus('GPS_LOCATION', [], onGpsLocation);
 
+    // New devices arrive the moment Kismet creates them, ahead of the poll.
+    kismet_ui_base.SubscribeEventbus('NEW_DEVICE', DEVICE_FIELDS, onNewDevice);
+
     schedulePoll(0);
+}
+
+// The eventbus applies one field list per topic per connection, so if another
+// module subscribes to NEW_DEVICE the record may arrive in full rather than in
+// our simplified shape.  Accept both.
+function normalizeRecord(d) {
+    if ('key' in d)
+        return d;
+    const out = {};
+    for (const [path, alias] of DEVICE_FIELDS) {
+        const v = kismet.ObjectByString(d, path);
+        out[alias] = v === undefined ? 0 : v;
+    }
+    return out;
+}
+
+function onNewDevice(d) {
+    if (map == null || d == null || typeof d !== 'object')
+        return;
+    stats.pushed++;
+    const list = kismet.sanitizeObject([normalizeRecord(d)]);
+    if (ingest(list, false))
+        applyFilter();
 }
 
 function defineClusterIcon() {
@@ -479,6 +580,7 @@ function addControls() {
             <input type="search" id="kestrel_filter" placeholder="Filter devices...">
             <label><input type="checkbox" id="kestrel_follow"> Follow GPS</label>
             <label><input type="checkbox" id="kestrel_showpath"> Drive path</label>
+            <label><input type="checkbox" id="kestrel_showdrones"> Drones</label>
             <button type="button" id="kestrel_fit">Fit to devices</button>
             <button type="button" id="kestrel_clearpath">Clear path</button>`;
         L.DomEvent.disableClickPropagation(div);
@@ -492,6 +594,8 @@ function addControls() {
         .on('change', (e) => setFollow(e.target.checked));
     $('#kestrel_showpath').prop('checked', setting('kestrel.drivepath.enabled'))
         .on('change', (e) => showDrivePath(e.target.checked));
+    $('#kestrel_showdrones').prop('checked', setting('kestrel.drones.enabled'))
+        .on('change', (e) => showDrones(e.target.checked));
     $('#kestrel_fit').on('click', () => fitDevices());
     $('#kestrel_clearpath').on('click', () => clearDrivePath());
 
@@ -504,7 +608,8 @@ function addControls() {
             `<span><i class="swatch ring" style="border-color:${b.color}"></i>${b.name}</span>`).join('');
         div.innerHTML =
             `<div><b>Security</b> ${security}</div>` +
-            `<div><b>Band</b> ${bands} <span><span class="kestrel-badge">5+</span> Wi-Fi generation, + = at least</span></div>`;
+            `<div><b>Band</b> ${bands} <span><span class="kestrel-badge">5+</span> Wi-Fi generation, + = at least</span>` +
+            ` <span><i class="kestrel-legend-drone">${DRONE_SVG}</i>drone at its broadcast position</span></div>`;
         return div;
     };
     legend.addTo(map);
@@ -537,6 +642,15 @@ function clearDrivePath() {
     lastPathPoint = null;
 }
 
+function showDrones(enabled) {
+    $('#kestrel_showdrones').prop('checked', enabled);
+    if (enabled && !map.hasLayer(droneLayer))
+        droneLayer.addTo(map);
+    else if (!enabled && map.hasLayer(droneLayer))
+        droneLayer.remove();
+    updateStatus();
+}
+
 function saveView() {
     const c = map.getCenter();
     kismet.putStorage('kestrel.view', { lat: c.lat, lon: c.lng, zoom: map.getZoom() });
@@ -557,6 +671,12 @@ function fitDevices() {
         if (!rec.marker.filtered)
             points.push([rec.lat, rec.lon]);
     }
+    if (map.hasLayer(droneLayer)) {
+        for (const dr of drones.values()) {
+            if (dr.shown)
+                points.push(dr.pos);
+        }
+    }
     if (points.length === 0)
         return;
     map.fitBounds(L.latLngBounds(points), { padding: [20, 20], maxZoom: 17 });
@@ -572,7 +692,211 @@ function updateStatus() {
             shown++;
     }
     const when = lastUpdate == null ? 'never' : lastUpdate.toLocaleTimeString();
-    $(statusControl.getContainer()).text(`${shown} of ${devices.size} located devices shown; updated ${when}`);
+    let text = `${shown} of ${devices.size} located devices shown`;
+
+    if (drones.size > 0) {
+        let live = 0;
+        for (const dr of drones.values()) {
+            refreshDroneIcon(dr);
+            if (dr.shown && !dr.stale)
+                live++;
+        }
+        text += `; ${drones.size} drone${drones.size === 1 ? '' : 's'}`;
+        if (live !== drones.size)
+            text += ` (${live} live)`;
+        if (!map.hasLayer(droneLayer))
+            text += ' hidden';
+    }
+
+    if (backoffFactor > 1)
+        text += `; server slow, polling every ${effectiveInterval}s`;
+
+    $(statusControl.getContainer()).text(`${text}; updated ${when}`);
+}
+
+// ---------------------------------------------------------------------------
+// Drone tracking
+// ---------------------------------------------------------------------------
+
+function droneIcon(dr) {
+    const heading = Math.round(dr.yaw * 180 / Math.PI);
+    return L.divIcon({
+        className: 'kestrel-divicon',
+        html: `<div class="kestrel-drone${dr.stale ? ' stale' : ''}" style="--c:${dr.color};transform:rotate(${heading}deg)">` +
+              `<span class="kestrel-drone-nose"></span>${DRONE_SVG}</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -18],
+    });
+}
+
+function auxIcon(dr, glyph) {
+    return L.divIcon({
+        className: 'kestrel-divicon',
+        html: `<div class="kestrel-drone-aux" style="--c:${dr.color}"><i class="fa ${glyph}"></i></div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+        popupAnchor: [0, -10],
+    });
+}
+
+function refreshDroneIcon(dr) {
+    const stale = (Date.now() / 1000 - dr.last_time) > DRONE_STALE_SECONDS;
+    const heading = Math.round(dr.yaw * 180 / Math.PI);
+    if (stale !== dr.stale || heading !== dr.drawnHeading) {
+        dr.stale = stale;
+        dr.drawnHeading = heading;
+        dr.marker.setIcon(droneIcon(dr));
+    }
+}
+
+// Returns true when the drone is new to the map.
+function updateDrone(d) {
+    // Kismet keeps the last 128 telemetry points per drone; that is the track.
+    // Its packet chain is multi-threaded, so sort by telemetry timestamp
+    // rather than trusting the vector order, and take the newest point as
+    // the drone's position rather than Kismet's "last telemetry".
+    const points = [];
+    if (Array.isArray(d.uav_history)) {
+        const entries = d.uav_history
+            .map((entry) => ({
+                ts: num(entry['uav.telemetry.timestamp']),
+                gp: kismet.ObjectByString(entry, 'uav.telemetry.location/kismet.common.location.geopoint'),
+            }))
+            .filter((e) => hasPoint(e.gp))
+            .sort((a, b) => a.ts - b.ts);
+        for (const e of entries)
+            points.push([e.gp[1], e.gp[0]]);
+    }
+    if (points.length === 0)
+        points.push([d.uav_pos[1], d.uav_pos[0]]);
+    const pos = points[points.length - 1];
+
+    let dr = drones.get(d.key);
+    const isNew = dr == null;
+
+    if (isNew) {
+        const color = DRONE_COLORS[droneColorNext++ % DRONE_COLORS.length];
+        dr = {
+            key: d.key,
+            color: color,
+            stale: false,
+            drawnHeading: null,
+            shown: true,
+            yaw: 0,
+            group: L.layerGroup(),
+            track: L.polyline([], { color: color, weight: 2.5, opacity: 0.85 }),
+            marker: null,
+            home: null,
+            operator: null,
+            link: null,
+        };
+        // Give the marker its icon up front, or Leaflet fetches its default
+        // marker images, which Kismet does not serve.
+        dr.marker = L.marker(pos, { icon: droneIcon(dr), zIndexOffset: 1000 });
+        dr.marker.bindPopup(() => dronePopup(dr), { minWidth: 220 });
+        dr.group.addLayer(dr.track).addLayer(dr.marker);
+        droneLayer.addLayer(dr.group);
+        drones.set(d.key, dr);
+    }
+
+    dr.name = d.name;
+    dr.mac = d.mac;
+    dr.manuf = typeof d.uav_manuf === 'string' && d.uav_manuf !== '' ? d.uav_manuf : d.manuf;
+    dr.model = typeof d.uav_model === 'string' ? d.uav_model : '';
+    dr.serial = typeof d.uav_serial === 'string' ? d.uav_serial : '';
+    dr.match = typeof d.uav_match === 'string' ? d.uav_match : '';
+    dr.last_time = num(d.last_time);
+    dr.pos = pos;
+    dr.alt = num(d.uav_alt);
+    dr.fix = num(d.uav_fix);
+    dr.height = num(d.uav_height);
+    dr.yaw = num(d.uav_yaw);
+    dr.speed = Math.hypot(num(d.uav_vn), num(d.uav_ve));
+    dr.vup = num(d.uav_vu);
+    dr.airborne = Boolean(d.uav_airborne);
+    dr.motor = Boolean(d.uav_motor);
+
+    dr.track.setLatLngs(points);
+    dr.marker.setLatLng(pos);
+
+    if (hasPoint(d.uav_home)) {
+        const home = [d.uav_home[1], d.uav_home[0]];
+        if (dr.home == null) {
+            dr.home = L.marker(home, { icon: auxIcon(dr, 'fa-house'), zIndexOffset: 900 })
+                .bindPopup(() => `<div class="kestrel-popup"><b>${dr.name}</b><br>Home / takeoff point</div>`);
+            dr.group.addLayer(dr.home);
+        }
+        dr.home.setLatLng(home);
+    }
+
+    if (hasPoint(d.uav_operator)) {
+        const op = [d.uav_operator[1], d.uav_operator[0]];
+        if (dr.operator == null) {
+            dr.operator = L.marker(op, { icon: auxIcon(dr, 'fa-person'), zIndexOffset: 900 })
+                .bindPopup(() => `<div class="kestrel-popup"><b>${dr.name}</b><br>Operator / controller position</div>`);
+            dr.link = L.polyline([op, pos], { color: dr.color, weight: 1.5, opacity: 0.7, dashArray: '4 6' });
+            dr.group.addLayer(dr.operator).addLayer(dr.link);
+        }
+        dr.operator.setLatLng(op);
+        dr.link.setLatLngs([op, pos]);
+        dr.operatorPos = op;
+    }
+
+    dr.stale = null;    // force the icon to redraw with the new heading/staleness
+    refreshDroneIcon(dr);
+
+    if (isNew && setting('kestrel.drones.jump') && map.hasLayer(droneLayer)) {
+        map.setView(pos, Math.max(map.getZoom(), 15));
+        viewInitialized = true;
+    }
+
+    return isNew;
+}
+
+function removeDrone(dr) {
+    droneLayer.removeLayer(dr.group);
+    drones.delete(dr.key);
+}
+
+function dronePopup(dr) {
+    const lines = [];
+    const what = [dr.manuf, dr.model].filter((s) => s).join(' ');
+    if (what)
+        lines.push(`Drone: ${what}`);
+    if (dr.serial)
+        lines.push(`Serial: ${dr.serial}`);
+    lines.push(`MAC: ${kismet.censorMAC(dr.mac)}`);
+    if (dr.match)
+        lines.push(`Identified by: ${dr.match}`);
+    lines.push(`Position: ${kismet.censorLocation(dr.pos[0].toFixed(5))}, ${kismet.censorLocation(dr.pos[1].toFixed(5))}`);
+    // Wi-Fi DroneID leaves altitude at 0 even with a 3D fix; only RF capture fills it.
+    if (dr.alt)
+        lines.push(`Altitude: ${dr.alt.toFixed(0)} m`);
+    if (dr.height)
+        lines.push(`Height above takeoff: ${dr.height.toFixed(0)} m`);
+    if (dr.speed || dr.vup)
+        lines.push(`Speed: ${(dr.speed * 3.6).toFixed(0)} km/h` + (dr.vup ? `, ${dr.vup > 0 ? 'climbing' : 'descending'} ${Math.abs(dr.vup).toFixed(1)} m/s` : ''));
+    if (dr.yaw)
+        lines.push(`Heading: ${Math.round(dr.yaw * 180 / Math.PI)}&deg;`);
+    if (dr.operatorPos)
+        lines.push(`Operator: ${map.distance(dr.operatorPos, dr.pos).toFixed(0)} m away`);
+    lines.push(`Status: ${dr.airborne ? 'airborne' : (dr.motor ? 'motors on' : 'unknown')}` + (dr.stale ? ', no telemetry for over a minute' : ''));
+    lines.push(`Last telemetry: ${new Date(dr.last_time * 1000).toLocaleString()}`);
+    lines.push(`Track: ${dr.track.getLatLngs().length} points`);
+
+    return `<div class="kestrel-popup">
+        <b>${dr.name || '(unnamed drone)'}</b><br>
+        ${lines.join('<br>\n        ')}<br>
+        <a href="#" class="kestrel-detail" data-key="${dr.key}">Device details</a>
+    </div>`;
+}
+
+function droneMatchesSearch(dr, term) {
+    if (term === '')
+        return true;
+    return [dr.name, dr.mac, dr.manuf, dr.model, dr.serial, dr.match, 'drone', 'uav']
+        .some((v) => typeof v === 'string' && v.toLowerCase().includes(term));
 }
 
 // ---------------------------------------------------------------------------
@@ -605,6 +929,10 @@ function ingest(list, full) {
     for (const d of list) {
         if (seen != null)
             seen.add(d.key);
+
+        // A drone with telemetry is plotted whether or not Kismet located it.
+        if (hasPoint(d.uav_pos) && droneLayer != null)
+            updateDrone(d);
 
         if (!hasLocation(d))
             continue;
@@ -641,6 +969,9 @@ function ingest(list, full) {
         rec.chan = typeof d.chan === 'string' ? d.chan : '';
         rec.ht = typeof d.ht === 'string' ? d.ht : '';
         rec.ietags = Array.isArray(d.ietags) ? d.ietags : null;
+        rec.uav = typeof d.uav_match === 'string' && d.uav_match !== ''
+            ? { manuf: d.uav_manuf, model: d.uav_model, serial: d.uav_serial, match: d.uav_match }
+            : null;
 
         rec.security = securityFor(rec.crypt);
         rec.enterprise = ENTERPRISE_RE.test(rec.crypt);
@@ -664,6 +995,10 @@ function ingest(list, full) {
         if (stale.length > 0) {
             cluster.RemoveMarkers(stale);
             changed = true;
+        }
+        for (const dr of [...drones.values()]) {
+            if (!seen.has(dr.key))
+                removeDrone(dr);
         }
     }
 
@@ -689,6 +1024,10 @@ function popupFor(data) {
         `Type: ${r.type} (${r.phy})`,
         `Manufacturer: ${r.manuf}`,
     ];
+    if (r.uav != null) {
+        const what = [r.uav.manuf, r.uav.model].filter((s) => typeof s === 'string' && s).join(' ');
+        lines.push(`Drone: ${what || 'unknown model'}${typeof r.uav.serial === 'string' && r.uav.serial ? `, serial ${r.uav.serial}` : ''} (${r.uav.match})`);
+    }
     if (r.phy === 'IEEE802.11')
         lines.push(`Security: ${securityLabel(r)}${r.enterprise ? ', enterprise' : ''}`);
     if (radio.length)
@@ -718,6 +1057,7 @@ function matchesSearch(rec, term) {
         rec.band != null ? BANDS[rec.band].name : '',
         rec.gen != null ? `wi-fi ${rec.gen}` : '',
         rec.enterprise ? 'enterprise' : '',
+        rec.uav != null ? `drone uav ${rec.uav.manuf} ${rec.uav.model} ${rec.uav.serial}` : '',
     ];
     return haystack.some((v) => typeof v === 'string' && v.toLowerCase().includes(term));
 }
@@ -728,6 +1068,13 @@ function applyFilter() {
     const term = currentSearchTerm();
     for (const rec of devices.values())
         rec.marker.filtered = !matchesSearch(rec, term);
+    for (const dr of drones.values()) {
+        dr.shown = droneMatchesSearch(dr, term);
+        if (dr.shown && !droneLayer.hasLayer(dr.group))
+            droneLayer.addLayer(dr.group);
+        else if (!dr.shown && droneLayer.hasLayer(dr.group))
+            droneLayer.removeLayer(dr.group);
+    }
     appliedSearchTerm = term;
     cluster.ProcessView();
     updateStatus();
@@ -742,16 +1089,25 @@ function schedulePoll(delayMs) {
 function pollOnce() {
     pollTimer = null;
 
+    // Tab activation and map start both schedule a poll; never run two chains.
+    if (pollInFlight)
+        return;
+
     // Don't hammer the server while the tab or window is hidden.
     if (map == null || !kismet_ui.window_visible || !$('#kestrel_map').is(':visible')) {
         schedulePoll(1000);
         return;
     }
+    pollInFlight = true;
 
-    const interval = Math.max(1, Number(setting('kestrel.poll.interval')) || DEFAULTS['kestrel.poll.interval']);
+    const configured = Math.max(1, Number(setting('kestrel.poll.interval')) || DEFAULTS['kestrel.poll.interval']);
+    const interval = Math.min(MAX_BACKOFF_SECONDS, configured * backoffFactor);
+    effectiveInterval = interval;
     const full = (Date.now() - lastFullLoad) > FULL_RESYNC_SECONDS * 1000;
-    const since = full ? null : interval * 2 + 1;
+    // The window overlaps the previous poll so a slow response cannot drop devices.
+    const since = full ? null : Math.ceil(interval * 2 + 1);
     const firstBatch = devices.size === 0;
+    const started = Date.now();
 
     fetchDevices(since)
         .done((data) => {
@@ -760,6 +1116,20 @@ function pollOnce() {
             if (full)
                 lastFullLoad = Date.now();
             lastUpdate = new Date();
+            stats.polls++;
+            if (full)
+                stats.fullLoads++;
+            stats.lastPollMs = Date.now() - started;
+
+            // Judge server load by the incremental polls only; a full load is
+            // expected to be slow.
+            if (!full) {
+                const seconds = stats.lastPollMs / 1000;
+                if (seconds > configured / 2)
+                    backoffFactor = Math.min(backoffFactor * 2, MAX_BACKOFF_SECONDS / configured);
+                else if (backoffFactor > 1 && seconds < configured / 4)
+                    backoffFactor = Math.max(1, backoffFactor / 2);
+            }
 
             if (changed || currentSearchTerm() !== appliedSearchTerm)
                 applyFilter();
@@ -771,8 +1141,12 @@ function pollOnce() {
         })
         .fail((xhr) => {
             console.warn('kestrel: device fetch failed', xhr.status, xhr.statusText);
+            backoffFactor = Math.min(backoffFactor * 2, MAX_BACKOFF_SECONDS / configured);
         })
-        .always(() => schedulePoll(interval * 1000));
+        .always(() => {
+            pollInFlight = false;
+            schedulePoll(Math.min(MAX_BACKOFF_SECONDS, configured * backoffFactor) * 1000);
+        });
 }
 
 // ---------------------------------------------------------------------------
@@ -839,6 +1213,10 @@ kismet_ui_settings.AddSettingsPane({
                  <label for="kestrel_s_path">Draw the drive path from GPS</label></div>
             <div><input type="checkbox" id="kestrel_s_follow">
                  <label for="kestrel_s_follow">Follow the GPS position by default</label></div>
+            <div><input type="checkbox" id="kestrel_s_drones">
+                 <label for="kestrel_s_drones">Show drones at their broadcast position</label></div>
+            <div><input type="checkbox" id="kestrel_s_dronejump">
+                 <label for="kestrel_s_dronejump">Jump to a drone when it is first seen</label></div>
             <div><input type="checkbox" id="kestrel_s_warn">
                  <label for="kestrel_s_warn">Warn before fetching map tiles</label></div>
         </fieldset>
@@ -850,6 +1228,8 @@ kismet_ui_settings.AddSettingsPane({
         $('#kestrel_s_interval', elem).val(setting('kestrel.poll.interval'));
         $('#kestrel_s_path', elem).prop('checked', setting('kestrel.drivepath.enabled'));
         $('#kestrel_s_follow', elem).prop('checked', setting('kestrel.follow.enabled'));
+        $('#kestrel_s_drones', elem).prop('checked', setting('kestrel.drones.enabled'));
+        $('#kestrel_s_dronejump', elem).prop('checked', setting('kestrel.drones.jump'));
         $('#kestrel_s_warn', elem).prop('checked', !setting('kestrel.maps_ok'));
 
         $('form', elem).on('change input', () => kismet_ui_settings.SettingsModified());
@@ -864,6 +1244,8 @@ kismet_ui_settings.AddSettingsPane({
             Number($('#kestrel_s_interval', elem).val()) || DEFAULTS['kestrel.poll.interval']);
         kismet.putStorage('kestrel.drivepath.enabled', $('#kestrel_s_path', elem).is(':checked'));
         kismet.putStorage('kestrel.follow.enabled', $('#kestrel_s_follow', elem).is(':checked'));
+        kismet.putStorage('kestrel.drones.enabled', $('#kestrel_s_drones', elem).is(':checked'));
+        kismet.putStorage('kestrel.drones.jump', $('#kestrel_s_dronejump', elem).is(':checked'));
         kismet.putStorage('kestrel.maps_ok', !$('#kestrel_s_warn', elem).is(':checked'));
 
         applySettings();
@@ -880,9 +1262,18 @@ function applySettings() {
 
     showDrivePath(setting('kestrel.drivepath.enabled'));
     setFollow(setting('kestrel.follow.enabled'));
+    showDrones(setting('kestrel.drones.enabled'));
 }
 
-// Handy from the browser console: kestrel.getDevices()
+// Handy from the browser console: kestrel.getDevices(), kestrel.getDrones()
 export function getDevices() {
     return devices;
+}
+
+export function getDrones() {
+    return drones;
+}
+
+export function getStats() {
+    return Object.assign({ backoffFactor: backoffFactor, effectiveInterval: effectiveInterval }, stats);
 }
