@@ -83,6 +83,13 @@ const DEVICE_FIELDS = [
     ['dot11.device/dot11.device.last_beaconed_ssid_record/dot11.advertisedssid.ht_mode', 'ht'],
     // Only populated when kismet.conf has dot11_keep_ietags=true.
     ['dot11.device/dot11.device.last_beaconed_ssid_record/dot11.advertisedssid.ie_tag_list', 'ietags'],
+    // Association: a client's last BSSID, and an AP's client count.
+    ['dot11.device/dot11.device.last_bssid', 'bssid'],
+    ['dot11.device/dot11.device.num_associated_clients', 'clients'],
+    // SSIDs: what an AP last beaconed, and what a client last probed for.
+    // (Kismet cannot simplify the full SSID maps, and they are heavy.)
+    ['dot11.device/dot11.device.last_beaconed_ssid_record/dot11.advertisedssid.ssid', 'ssid'],
+    ['dot11.device/dot11.device.last_probed_ssid_record/dot11.probedssid.ssid', 'probed'],
     // UAV records from Kismet's drone PHY (DJI DroneID over Wi-Fi or RF).
     // Only the position and serial come from Wi-Fi DroneID; the rest is
     // filled in by RF capture (ANTSDR) and stays 0 otherwise.
@@ -104,6 +111,16 @@ const DEVICE_FIELDS = [
     ['uav.device/uav.telemetry.app_location/kismet.common.location.geopoint', 'uav_operator'],
     ['uav.device/uav.telemetry_history', 'uav_history'],
 ];
+
+// The periodic resync first fetches only this for every device (about 90
+// bytes each), then pulls full records by key just for what the map lacks.
+const LIGHT_FIELDS = [
+    ['kismet.device.base.key', 'key'],
+    ['kismet.device.base.last_time', 'last_time'],
+    ['kismet.device.base.location/kismet.common.location.avg_loc/kismet.common.location.geopoint', 'geopoint'],
+    ['uav.device/uav.last_telemetry/uav.telemetry.location/kismet.common.location.geopoint', 'uav_pos'],
+];
+const MULTIKEY_BATCH = 250;
 
 // ---------------------------------------------------------------------------
 // Drones
@@ -251,7 +268,8 @@ function markerIcon(rec) {
     const isBluetooth = rec.phy === 'Bluetooth' || rec.phy === 'BTLE';
     const glyph = rec.uav != null ? 'drone' : (GLYPHS[rec.type] || (isBluetooth ? 'bluetooth' : 'fa-microchip'));
     const badge = rec.gen != null && rec.gen !== 'legacy' ? rec.gen : '';
-    const key = [sec.key, rec.band, glyph, badge, rec.enterprise].join('|');
+    const clients = rec.clients > 9 ? '9+' : (rec.clients > 0 ? String(rec.clients) : '');
+    const key = [sec.key, rec.band, glyph, badge, rec.enterprise, clients].join('|');
 
     let icon = iconCache.get(key);
     if (icon == null) {
@@ -267,6 +285,7 @@ function markerIcon(rec) {
             inner +
             (badge ? `<span class="kestrel-badge">${badge}</span>` : '') +
             (rec.enterprise ? '<i class="fa fa-lock kestrel-lock"></i>' : '') +
+            (clients ? `<span class="kestrel-clients" title="associated clients">${clients}</span>` : '') +
             '</div>';
         icon = L.divIcon({
             className: 'kestrel-divicon',
@@ -338,6 +357,30 @@ let statusControl = null;
 
 // device key -> { key, mac, name, type, phy, manuf, signal, last_time, lat, lon, marker }
 const devices = new Map();
+// MAC -> record, so a client's last BSSID resolves to its access point.
+const devicesByMac = new Map();
+
+function apFor(rec) {
+    if (!rec.bssid)
+        return null;
+    const ap = devicesByMac.get(rec.bssid);
+    return ap != null && ap.key !== rec.key ? ap : null;
+}
+
+function clientsOf(ap) {
+    const out = [];
+    for (const rec of devices.values()) {
+        if (rec.bssid === ap.mac && rec.key !== ap.key)
+            out.push(rec);
+    }
+    return out;
+}
+
+function dropDevice(rec) {
+    devices.delete(rec.key);
+    if (devicesByMac.get(rec.mac) === rec)
+        devicesByMac.delete(rec.mac);
+}
 
 // device key -> { key, color, pos, marker, track, home, operator, link, group, ... }
 const drones = new Map();
@@ -349,7 +392,7 @@ let pollInFlight = false;
 let lastFullLoad = 0;
 let backoffFactor = 1;
 let effectiveInterval = 0;
-const stats = { polls: 0, fullLoads: 0, pushed: 0, lastPollMs: 0 };
+const stats = { polls: 0, fullLoads: 0, pushed: 0, lastPollMs: 0, lastResync: null };
 let viewInitialized = false;
 let lastUpdate = null;
 let lastPathPoint = null;
@@ -450,6 +493,7 @@ async function startMap() {
     tileLayer = makeTileLayer().addTo(map);
 
     cluster = new PruneClusterForLeaflet();
+    cluster.spiderfier = makeSpiderfier(cluster);
     cluster.BuildLeafletClusterIcon = function(c) {
         const icon = new L.Icon.MarkerCluster();
         icon.stats = c.stats;
@@ -570,6 +614,88 @@ function defineClusterIcon() {
             ctx.fillText(String(this.population), c, c, 30);
         },
     });
+}
+
+// Order an expanded cluster's markers so each access point is followed by its
+// clients; everything unassociated keeps its original order afterwards.
+function orderByAssociation(markers) {
+    const present = new Set(markers.map((m) => m.data.rec.key));
+    const clientsByAp = new Map();
+    const grouped = new Set();
+
+    for (const m of markers) {
+        const ap = apFor(m.data.rec);
+        if (ap != null && present.has(ap.key)) {
+            if (!clientsByAp.has(ap.key))
+                clientsByAp.set(ap.key, []);
+            clientsByAp.get(ap.key).push(m);
+            grouped.add(m.data.rec.key);
+        }
+    }
+
+    const ordered = [];
+    for (const m of markers) {
+        const key = m.data.rec.key;
+        if (grouped.has(key))
+            continue;
+        ordered.push(m);
+        if (clientsByAp.has(key))
+            ordered.push(...clientsByAp.get(key));
+    }
+    return ordered;
+}
+
+// PruneCluster's spiderfier, with association ordering and client-to-AP lines.
+function makeSpiderfier(clusterLayer) {
+    const KestrelSpiderfier = PruneClusterLeafletSpiderfier.extend({
+        Spiderfy: function(data) {
+            if (data.cluster !== this._cluster)
+                return;
+
+            data.markers = orderByAssociation(data.markers);
+            PruneClusterLeafletSpiderfier.prototype.Spiderfy.call(this, data);
+
+            // Recreate the layout the parent just used so we know where each
+            // marker landed, then link clients to their access points.
+            const markers = data.markers.filter((m) => !m.filtered);
+            const centerPoint = this._map.latLngToLayerPoint(data.center);
+            const points = markers.length >= this._spiralCountTrigger
+                ? this._generatePointsSpiral(markers.length, centerPoint)
+                : this._generatePointsCircle(markers.length, centerPoint);
+
+            const index = new Map(markers.map((m, i) => [m.data.rec.key, i]));
+            const segments = [];
+            for (let i = 0; i < markers.length; i++) {
+                const ap = apFor(markers[i].data.rec);
+                if (ap == null || !index.has(ap.key))
+                    continue;
+                segments.push([
+                    this._map.layerPointToLatLng(points[i]),
+                    this._map.layerPointToLatLng(points[index.get(ap.key)]),
+                ]);
+            }
+
+            if (segments.length > 0) {
+                this._assocLines = L.polyline(segments, {
+                    color: '#ffffff', weight: 1.5, opacity: 0.75, dashArray: '3 4', interactive: false,
+                });
+                // Appear once the legs have finished animating outwards.
+                const lines = this._assocLines;
+                window.setTimeout(() => {
+                    if (this._assocLines === lines)
+                        this._map.addLayer(lines);
+                }, 300);
+            }
+        },
+        Unspiderfy: function() {
+            if (this._assocLines != null) {
+                this._map.removeLayer(this._assocLines);
+                this._assocLines = null;
+            }
+            PruneClusterLeafletSpiderfier.prototype.Unspiderfy.call(this);
+        },
+    });
+    return new KestrelSpiderfier(clusterLayer);
 }
 
 function addControls() {
@@ -808,6 +934,7 @@ function updateDrone(d) {
     dr.match = typeof d.uav_match === 'string' ? d.uav_match : '';
     dr.last_time = num(d.last_time);
     dr.pos = pos;
+    dr.reported = [d.uav_pos[1], d.uav_pos[0]];    // what Kismet calls "last telemetry"
     dr.alt = num(d.uav_alt);
     dr.fix = num(d.uav_fix);
     dr.height = num(d.uav_height);
@@ -903,14 +1030,26 @@ function droneMatchesSearch(dr, term) {
 // Device polling
 // ---------------------------------------------------------------------------
 
-function fetchDevices(sinceSeconds) {
-    // A full load pulls every device Kismet knows; incremental polls only ask
-    // for devices active since the previous poll.
-    const url = sinceSeconds == null
-        ? `${local_uri_prefix}devices/views/all/devices.json`
-        : `${local_uri_prefix}devices/views/all/last-time/${-sinceSeconds}/devices.json`;
+function asList(data) {
+    return Array.isArray(data) ? data : [];
+}
 
-    return $.post(url, { json: JSON.stringify({ fields: DEVICE_FIELDS }) });
+// Every device Kismet knows, with the given field list.
+function fetchAll(fields) {
+    return $.post(`${local_uri_prefix}devices/views/all/devices.json`,
+        { json: JSON.stringify({ fields: fields }) });
+}
+
+// Devices active in the last N seconds, with full fields.
+function fetchIncremental(sinceSeconds) {
+    return $.post(`${local_uri_prefix}devices/views/all/last-time/${-sinceSeconds}/devices.json`,
+        { json: JSON.stringify({ fields: DEVICE_FIELDS }) });
+}
+
+// Full records for specific device keys.
+function fetchByKeys(keys) {
+    return $.post(`${local_uri_prefix}devices/multikey/devices.json`,
+        { json: JSON.stringify({ devices: keys, fields: DEVICE_FIELDS }) });
 }
 
 function hasLocation(d) {
@@ -962,8 +1101,15 @@ function ingest(list, full) {
         rec.manuf = d.manuf;
         rec.signal = d.signal;
         rec.last_time = d.last_time;
+        if (typeof rec.mac === 'string')
+            devicesByMac.set(rec.mac, rec);
 
         // Fields absent from a record are simplified to 0 by Kismet.
+        // A zero BSSID means Kismet never saw the client associated.
+        rec.bssid = typeof d.bssid === 'string' && d.bssid !== '00:00:00:00:00:00' ? d.bssid : '';
+        rec.clients = num(d.clients);
+        rec.ssid = typeof d.ssid === 'string' ? d.ssid : '';
+        rec.probed = typeof d.probed === 'string' ? d.probed : '';
         rec.crypt = typeof d.crypt === 'string' ? d.crypt : '';
         rec.freq = Number(d.freq) || 0;
         rec.chan = typeof d.chan === 'string' ? d.chan : '';
@@ -989,7 +1135,7 @@ function ingest(list, full) {
         for (const [key, rec] of devices) {
             if (!seen.has(key)) {
                 stale.push(rec.marker);
-                devices.delete(key);
+                dropDevice(rec);
             }
         }
         if (stale.length > 0) {
@@ -1002,6 +1148,75 @@ function ingest(list, full) {
         }
     }
 
+    return changed;
+}
+
+// Two-stage resync.  Stage one is a light pass over every device: it moves
+// markers whose position changed, prunes what Kismet dropped, and collects
+// the keys of located devices (or drones with new telemetry) the map lacks.
+// Stage two fetches full records for just those keys, in batches.  Resolves
+// to true when the cluster view needs reprocessing.
+async function resync() {
+    const started = Date.now();
+    const list = kismet.sanitizeObject(asList(await fetchAll(LIGHT_FIELDS)));
+    const seen = new Set();
+    const wanted = new Set();
+    let changed = false;
+
+    for (const d of list) {
+        seen.add(d.key);
+
+        if (hasLocation(d)) {
+            const rec = devices.get(d.key);
+            if (rec == null) {
+                wanted.add(d.key);
+            } else {
+                const lat = d.geopoint[1];
+                const lon = d.geopoint[0];
+                if (rec.lat !== lat || rec.lon !== lon) {
+                    rec.marker.Move(lat, lon);
+                    rec.lat = lat;
+                    rec.lon = lon;
+                    changed = true;
+                }
+                if (num(d.last_time) > num(rec.last_time))
+                    rec.last_time = d.last_time;
+            }
+        }
+
+        if (hasPoint(d.uav_pos)) {
+            const dr = drones.get(d.key);
+            if (dr == null || dr.reported[0] !== d.uav_pos[1] || dr.reported[1] !== d.uav_pos[0])
+                wanted.add(d.key);
+        }
+    }
+
+    const stale = [];
+    for (const [key, rec] of devices) {
+        if (!seen.has(key)) {
+            stale.push(rec.marker);
+            dropDevice(rec);
+        }
+    }
+    if (stale.length > 0) {
+        cluster.RemoveMarkers(stale);
+        changed = true;
+    }
+    for (const dr of [...drones.values()]) {
+        if (!seen.has(dr.key))
+            removeDrone(dr);
+    }
+
+    const keys = [...wanted];
+    let fetched = 0;
+    for (let i = 0; i < keys.length; i += MULTIKEY_BATCH) {
+        const recs = kismet.sanitizeObject(asList(await fetchByKeys(keys.slice(i, i + MULTIKEY_BATCH))));
+        fetched += recs.length;
+        if (ingest(recs, false))
+            changed = true;
+    }
+
+    stats.lastResync = { devices: list.length, pruned: stale.length, refreshed: fetched, ms: Date.now() - started };
     return changed;
 }
 
@@ -1028,6 +1243,10 @@ function popupFor(data) {
         const what = [r.uav.manuf, r.uav.model].filter((s) => typeof s === 'string' && s).join(' ');
         lines.push(`Drone: ${what || 'unknown model'}${typeof r.uav.serial === 'string' && r.uav.serial ? `, serial ${r.uav.serial}` : ''} (${r.uav.match})`);
     }
+    if (r.ssid && r.ssid !== r.name)
+        lines.push(`SSID: ${r.ssid}`);
+    if (r.probed)
+        lines.push(`Probing for: ${r.probed}`);
     if (r.phy === 'IEEE802.11')
         lines.push(`Security: ${securityLabel(r)}${r.enterprise ? ', enterprise' : ''}`);
     if (radio.length)
@@ -1035,6 +1254,23 @@ function popupFor(data) {
     const gen = generationLabel(r);
     if (gen)
         lines.push(`Wi-Fi: ${gen}`);
+
+    // Association, both directions, with links into the details window.
+    const ap = apFor(r);
+    if (ap != null) {
+        lines.push(`Connected to: <a href="#" class="kestrel-detail" data-key="${ap.key}">${ap.name || kismet.censorMAC(ap.mac)}</a>`);
+    } else if (r.bssid) {
+        lines.push(`Connected to: ${kismet.censorMAC(r.bssid)} (not on map)`);
+    }
+    if (r.clients > 0) {
+        const here = clientsOf(r);
+        const names = here.slice(0, 8).map((c) =>
+            `<a href="#" class="kestrel-detail" data-key="${c.key}">${c.name || kismet.censorMAC(c.mac)}</a>`);
+        if (here.length > 8)
+            names.push(`and ${here.length - 8} more`);
+        lines.push(`Clients: ${r.clients}` + (names.length ? `, on map: ${names.join(', ')}` : ''));
+    }
+
     lines.push(`Signal: ${signal}`, `Last seen: ${seen}`);
 
     return `<div class="kestrel-popup">
@@ -1058,6 +1294,9 @@ function matchesSearch(rec, term) {
         rec.gen != null ? `wi-fi ${rec.gen}` : '',
         rec.enterprise ? 'enterprise' : '',
         rec.uav != null ? `drone uav ${rec.uav.manuf} ${rec.uav.model} ${rec.uav.serial}` : '',
+        // Searching an SSID also shows the clients connected to it or
+        // probing for it.
+        rec.ssid, rec.probed, rec.bssid, (apFor(rec) || {}).name,
     ];
     return haystack.some((v) => typeof v === 'string' && v.toLowerCase().includes(term));
 }
@@ -1103,16 +1342,25 @@ function pollOnce() {
     const configured = Math.max(1, Number(setting('kestrel.poll.interval')) || DEFAULTS['kestrel.poll.interval']);
     const interval = Math.min(MAX_BACKOFF_SECONDS, configured * backoffFactor);
     effectiveInterval = interval;
-    const full = (Date.now() - lastFullLoad) > FULL_RESYNC_SECONDS * 1000;
-    // The window overlaps the previous poll so a slow response cannot drop devices.
-    const since = full ? null : Math.ceil(interval * 2 + 1);
+    const initial = lastFullLoad === 0;
+    const full = initial || (Date.now() - lastFullLoad) > FULL_RESYNC_SECONDS * 1000;
     const firstBatch = devices.size === 0;
     const started = Date.now();
 
-    fetchDevices(since)
-        .done((data) => {
-            const list = kismet.sanitizeObject(Array.isArray(data) ? data : []);
-            const changed = ingest(list, full);
+    let work;
+    if (initial) {
+        // Everything is missing on the first load, so one full fetch is cheapest.
+        work = fetchAll(DEVICE_FIELDS).then((data) => ingest(kismet.sanitizeObject(asList(data)), true));
+    } else if (full) {
+        work = resync();
+    } else {
+        // The window overlaps the previous poll so a slow response cannot drop devices.
+        work = fetchIncremental(Math.ceil(interval * 2 + 1))
+            .then((data) => ingest(kismet.sanitizeObject(asList(data)), false));
+    }
+
+    Promise.resolve(work)
+        .then((changed) => {
             if (full)
                 lastFullLoad = Date.now();
             lastUpdate = new Date();
@@ -1139,11 +1387,12 @@ function pollOnce() {
             if (firstBatch && devices.size > 0 && !viewInitialized)
                 fitDevices();
         })
-        .fail((xhr) => {
-            console.warn('kestrel: device fetch failed', xhr.status, xhr.statusText);
+        .catch((err) => {
+            const why = err && err.status != null ? `${err.status} ${err.statusText}` : String(err);
+            console.warn('kestrel: device fetch failed', why);
             backoffFactor = Math.min(backoffFactor * 2, MAX_BACKOFF_SECONDS / configured);
         })
-        .always(() => {
+        .finally(() => {
             pollInFlight = false;
             schedulePoll(Math.min(MAX_BACKOFF_SECONDS, configured * backoffFactor) * 1000);
         });
@@ -1276,4 +1525,25 @@ export function getDrones() {
 
 export function getStats() {
     return Object.assign({ backoffFactor: backoffFactor, effectiveInterval: effectiveInterval }, stats);
+}
+
+// Force a resync on the next poll.
+export function resyncNow() {
+    lastFullLoad = 1;
+    schedulePoll(0);
+}
+
+// Drop a device from the map; the next resync fetches it back if Kismet
+// still has it.  Useful for testing from the console.
+export function forget(key) {
+    const rec = devices.get(key);
+    if (rec != null) {
+        cluster.RemoveMarkers([rec.marker]);
+        dropDevice(rec);
+    }
+    const dr = drones.get(key);
+    if (dr != null)
+        removeDrone(dr);
+    if (cluster != null)
+        cluster.ProcessView();
 }

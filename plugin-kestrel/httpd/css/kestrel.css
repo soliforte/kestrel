@@ -135,6 +135,24 @@
     display: block;
 }
 
+/* Associated-client count on access points. */
+.kestrel-clients {
+    position: absolute;
+    right: -6px;
+    top: -5px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 2px;
+    box-sizing: border-box;
+    border-radius: 7px;
+    border: 1px solid #ffffff;
+    background: #1e88e5;
+    color: #ffffff;
+    font: bold 9px/12px sans-serif;
+    text-align: center;
+    white-space: nowrap;
+}
+
 .kestrel-lock {
     position: absolute;
     left: -5px;
@@ -158,6 +176,9 @@
     position: relative;
     width: 100%;
     height: 100%;
+    /* Own stacking context: Leaflet's panes and controls use z-index 400 to
+       1000, which would otherwise paint over Kismet's dropdowns and panels. */
+    z-index: 0;
 }
 
 #kestrel_map {
