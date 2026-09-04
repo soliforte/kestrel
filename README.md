@@ -85,9 +85,20 @@ find a user plugin directory" warning pointing at the wrong home.
 - **Popups.** Click a marker for name, MAC, type, manufacturer, security,
   channel and band, Wi-Fi generation, signal and last-seen time, plus a link
   to the full device details window.
+- **Drones.** Kismet's UAV PHY decodes DJI DroneID broadcasts (over Wi-Fi,
+  or over RF with an ANTSDR capture source) and fingerprints other drones by
+  SSID and MAC.  Any drone that reports its own position is drawn there, as a
+  large disc in its own colour with a nose showing heading, a track of its
+  last 128 telemetry points, and, when broadcast, its home point and operator
+  position with a dashed line to the operator.  A drone that stops reporting
+  fades after a minute.  The popup shows model, serial, altitude, speed,
+  heading and operator distance where Kismet has them.  Fingerprinted drones
+  without telemetry keep a normal marker with a drone glyph at the spot where
+  Kismet heard them.  By default the map jumps to a drone the first time it
+  is seen; the Drones checkbox and the settings pane control both behaviours.
 - **Map controls** (top right): follow the GPS position, show or hide the
-  drive path, fit the view to all shown devices, clear the drive path.
-  Dragging the map turns off follow mode.
+  drive path and drones, fit the view to all shown devices, clear the drive
+  path.  Dragging the map turns off follow mode.
 - **Legend** (bottom right) explains the security colours, band rings and
   generation badge; the status line (bottom left) shows how many devices are
   plotted and when they last updated.
@@ -100,8 +111,10 @@ Open Kismet's **Settings** and pick **Kestrel Map** to change:
 - the tile URL template and attribution, for example to point at a local tile
   server for offline use;
 - the maximum zoom level;
-- the refresh interval (default 5 seconds);
+- the refresh interval (default 2 seconds; Kismet's own device list polls
+  every second, so 1 is fine on a normal server);
 - whether the drive path is drawn and whether follow mode starts enabled;
+- whether drones are shown and whether the map jumps to a newly seen drone;
 - whether the tile warning is shown.
 
 ## How it works
@@ -112,6 +125,14 @@ Open Kismet's **Settings** and pick **Kestrel Map** to change:
   markers in place, keyed by Kismet's device key.  A full resync once a minute
   picks up anything the incremental polls miss, such as replayed logs with old
   timestamps, and drops devices Kismet has expired.
+- New devices are pushed over Kismet's eventbus (`NEW_DEVICE`) the moment
+  Kismet creates them, so a new network or drone appears before the next poll.
+- Polling adapts to the server.  If an incremental poll takes longer than half
+  the configured interval, the interval doubles (up to 30 seconds) and the
+  status line says so; it decays back once responses are quick again.
+- Kismet's device monitor websocket would avoid polling entirely, but in
+  Kismet 2025.09 its change detection reads a dangling variable and drops
+  nearly all updates, so Kestrel does not use it.
 - The GPS position comes from Kismet's eventbus (`GPS_LOCATION`) rather than
   polling.  The drive path is a single polyline capped at 20,000 points, which
   fixes the memory leak in the original drive path code.
