@@ -67,8 +67,12 @@ find a user plugin directory" warning pointing at the wrong home.
 - **Tile consent.** The first time the map opens it warns that map tiles will
   be fetched from the Internet.  Tick "Don't warn me again" to skip it.
 - **Filter.** The box at the top right of the map shows only matching devices
-  (case-insensitive; matches name, MAC, type, manufacturer, PHY, security,
-  channel, band and Wi-Fi generation, so "open", "5 GHz" or "wi-fi 6" work).
+  (case-insensitive; matches name, SSID, MAC, type, manufacturer, PHY,
+  security, channel, band and Wi-Fi generation, so "open", "5 GHz" or
+  "wi-fi 6" work).  Searching an SSID shows the access points beaconing it,
+  the clients connected to them, and clients probing for it.  Kismet only
+  exposes the last beaconed and last probed SSID cheaply, so an access point
+  advertising several SSIDs matches on its most recent one.
   A search typed into the Devices tab is carried over to the map filter when
   you switch to the Map tab and the map filter is empty.
 - **Markers.** Each device is a coloured disc.  The fill is its security
@@ -85,6 +89,13 @@ find a user plugin directory" warning pointing at the wrong home.
 - **Popups.** Click a marker for name, MAC, type, manufacturer, security,
   channel and band, Wi-Fi generation, signal and last-seen time, plus a link
   to the full device details window.
+- **Associations.** Access points carry a blue badge with their associated
+  client count.  When a cluster expands, its spiral is ordered so each access
+  point is followed by its clients, with a thin line from each client to its
+  access point.  A client's popup links to its access point and an access
+  point's popup lists the clients on the map.  Kismet only knows an
+  association when it saw traffic between the two, so probing-only clients
+  stay ungrouped; their popup shows the SSID they are probing for instead.
 - **Drones.** Kismet's UAV PHY decodes DJI DroneID broadcasts (over Wi-Fi,
   or over RF with an ANTSDR capture source) and fingerprints other drones by
   SSID and MAC.  Any drone that reports its own position is drawn there, as a
@@ -100,8 +111,9 @@ find a user plugin directory" warning pointing at the wrong home.
   drive path and drones, fit the view to all shown devices, clear the drive
   path.  Dragging the map turns off follow mode.
 - **Legend** (bottom right) explains the security colours, band rings and
-  generation badge; the status line (bottom left) shows how many devices are
-  plotted and when they last updated.
+  generation badge; the status line (bottom left) shows how many devices and
+  drones are plotted, when they last updated, and whether polling has backed
+  off.
 - The map view is remembered across reloads.
 
 ## Settings
@@ -122,9 +134,14 @@ Open Kismet's **Settings** and pick **Kestrel Map** to change:
 - Devices are fetched with Kismet's field simplification, so only the handful
   of fields the map needs cross the wire.  The first load pulls every device;
   later polls ask only for devices active since the previous poll and update
-  markers in place, keyed by Kismet's device key.  A full resync once a minute
-  picks up anything the incremental polls miss, such as replayed logs with old
-  timestamps, and drops devices Kismet has expired.
+  markers in place, keyed by Kismet's device key.
+- A resync once a minute catches anything the incremental polls miss, such
+  as replayed logs with old timestamps, and drops devices Kismet has expired.
+  It is two-stage to stay cheap on big sessions: a light pass fetches only
+  key, last-seen time and position for every device (about 90 bytes each),
+  then full records are fetched by key, in batches, only for devices the map
+  is missing or whose position moved.  In steady state that second stage is
+  empty.  Only the very first load fetches everything in one request.
 - New devices are pushed over Kismet's eventbus (`NEW_DEVICE`) the moment
   Kismet creates them, so a new network or drone appears before the next poll.
 - Polling adapts to the server.  If an incremental poll takes longer than half
@@ -145,6 +162,17 @@ Everything lives in `plugin-kestrel/httpd/js/kestrel.js` and
 `plugin-kestrel/httpd/css/kestrel.css`.  There is no build step; re-run the
 install target and reload the browser to pick up changes (Kismet serves the
 files from disk, so no restart is needed).
+
+Kismet exposes the plugin module as the global `kestrel` in the browser
+console.  `kestrel.getStats()` reports polls, full loads, pushed devices, the
+last poll time and the backoff state; `kestrel.getDevices()` and
+`kestrel.getDrones()` return the live maps; `kestrel.resyncNow()` forces a
+resync; `kestrel.forget(key)` drops a device so the next resync fetches it
+back, which is handy for testing.
+
+For test data without radios, replay a pcap through Kismet with a
+`pcapfile` source and a `virtual:lat=..,lon=..` GPS; beacons carrying a DJI
+DroneID vendor IE exercise the drone tracker.
 
 This was the author's first JavaScript.  Suggestions and pull requests are
 very welcome.
