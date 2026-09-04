@@ -1,66 +1,94 @@
-# Kestrel 
-Mapping plugin for new Kismet API
+# Kestrel
+
+Live mapping of located devices, directly inside the Kismet web UI.
 
 ![logo](https://github.com/SoliForte/Kestrel/blob/master/Kestrel.png)
 
-# Disclaimers
+Kestrel adds a **Map** tab to the main Kismet pane.  Every device Kismet has a
+GPS location for is plotted with a type-specific icon, clustered when zoomed
+out, and refreshed live as Kismet sees new devices.  The map filters with the
+main device search box, popups link into Kismet's device details window, and
+the GPS position and drive path are drawn as Kismet reports them.
 
-This is based on Leaflet.js and PruneCluster for clustering.
-Thanks to them for their work and making this a lot easier.
-Also, a huge thanks to Dragorn (@kismetwireless) for making this whole thing possible, and his help with debugging my crap!
+Built on [Leaflet](https://leafletjs.com) (shipped with Kismet) and
+[PruneCluster](https://github.com/SINTEF-9012/PruneCluster).  Thanks to both
+projects, and a huge thanks to Dragorn (@kismetwireless) for making the plugin
+system possible and for his help debugging.
 
-# Demo
+[Kestrel in action (original release)](https://www.youtube.com/watch?v=ntG1sJnQLH0)
 
-[Kestrel in Action](https://www.youtube.com/watch?v=ntG1sJnQLH0)
+## Requirements
 
-# Purpose
+A current Kismet release.  Kismet now loads web plugins as ES modules and
+ships Leaflet itself; Kestrel relies on both.  If you run a Kismet from before
+2022, use the previous Kestrel commit (`a6b006b`) instead.
 
-The intent of this plugin is to add live mapping of networks into the Kismet UI directly.
+## Installation
 
-# Updates
+Clone this repository:
 
-10-6-2017: Kestrel now supports searching! Using the main search bar above the Devices list in the Kismet UI will now also filter and display markers for only those devices. Currently, it is case SENSITIVE... working on that.
+    git clone https://github.com/soliforte/kestrel
+    cd kestrel/plugin-kestrel
 
-Popups have been added back in. By default popups include SSID, MAC, and TYPE of device (wifi AP, Client, Bridge, or Bluetooth).
-Additionally, there is an option with kestrel.js to set autocenter on most recent location. This is disable by default as it makes it difficult to interact with the map as it resets the view every couple seconds. Just find the line towards the bottom and uncomment my stuff
-Switched map source to mapquest. Map tile sources can be switched by editing the kestrel.js and switching the URL, check the Leaflet documentation for accepted sources.
+Install system-wide (into Kismet's plugin directory, found via pkg-config or
+the Kismet source tree in `/usr/src/kismet`):
 
-In lieu of centering on current location, I center on the most recently plotted cluster, as those should be the same thing.
+    sudo make install
 
-A couple of notes: I have not worked out how to prevent duplicate markers, so staying in one spot can lead to a LOT of markers in one spot, depending on the refresh rate (adjustable in kestrel.js). Right now, it grabs devices from the last 20s, every 20s which seems pretty reasonable.
+Or install for the user who runs Kismet only:
 
-Refreshing the browser clears the map of all markers.
+    make userinstall
 
-# TODO
-1. ~~Center on operator.~~
-2. Draw Drivepath.
-3. Cache offline map tiles.
-4. Search function
+Restart Kismet, open the web UI, and the **Map** tab appears next to
+**Devices**.
 
-# Installation
+## Using it
 
-Still under heavy development, also: I don't know any javascript at all, so if you have suggestions to fix/improve, let me know.
+- **Tile consent.** The first time the map opens it warns that map tiles will
+  be fetched from the Internet.  Tick "Don't warn me again" to skip it.
+- **Filter.** The box at the top right of the map shows only matching devices
+  (case-insensitive; matches name, MAC, type, manufacturer and PHY).  A search
+  typed into the Devices tab is carried over to the map filter when you switch
+  to the Map tab and the map filter is empty.
+- **Popups.** Click a marker for name, MAC, type, manufacturer, signal and
+  last-seen time, plus a link to the full device details window.
+- **Map controls** (top right): follow the GPS position, show or hide the
+  drive path, fit the view to all shown devices, clear the drive path.
+  Dragging the map turns off follow mode.
+- **Legend** (bottom right) explains the cluster pie colours; the status line
+  (bottom left) shows how many devices are plotted and when they last updated.
+- The map view is remembered across reloads.
 
-Assuming you have the newest build of kismet installed (from the Kismet git-master development repository):
+## Settings
 
-   Clone this repository 
+Open Kismet's **Settings** and pick **Kestrel Map** to change:
 
-    $ git clone https://github.com/soliforte/kestrel
+- the tile URL template and attribution, for example to point at a local tile
+  server for offline use;
+- the maximum zoom level;
+- the refresh interval (default 5 seconds);
+- whether the drive path is drawn and whether follow mode starts enabled;
+- whether the tile warning is shown.
 
-   Install the plugin - plugins can be installed system-side or to your home directory only.
+## How it works
 
-   To install system-wide (assuming your Kismet install is in the default location):
+- Devices are fetched with Kismet's field simplification, so only the handful
+  of fields the map needs cross the wire.  The first load pulls every device;
+  later polls ask only for devices active since the previous poll and update
+  markers in place, keyed by Kismet's device key.  A full resync once a minute
+  picks up anything the incremental polls miss, such as replayed logs with old
+  timestamps, and drops devices Kismet has expired.
+- The GPS position comes from Kismet's eventbus (`GPS_LOCATION`) rather than
+  polling.  The drive path is a single polyline capped at 20,000 points, which
+  fixes the memory leak in the original drive path code.
+- Polling pauses while the Map tab or browser window is hidden.
+- Kismet's dark theme is respected, including inverted map tiles.
 
-    $ cd plugin-kestrel
-    $ sudo make install
+## Development
 
-   To install in the user directory, as the user who runs Kismet:
+Everything lives in `plugin-kestrel/httpd/js/kestrel.js` and
+`plugin-kestrel/httpd/css/kestrel.css`.  There is no build step; `make
+userinstall` copies the files and a browser reload picks them up.
 
-    $ cd plugin-kestrel
-    $ make userinstall
-
-   Start kismet server - if Kismet was already running, you'll need to restart it.
-
-   Connect to the Kismet UI (http://localhost:2501)
-
-   Kismet should now have a new Maps tab, and your browser will ask for your location.
+This was the author's first JavaScript.  Suggestions and pull requests are
+very welcome.

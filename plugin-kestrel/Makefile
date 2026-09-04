@@ -13,19 +13,20 @@ top_builddir = $(BLDHOME)
 
 # Set sane values if we don't have the base config
 INSTALL ?= /usr/bin/install
-plugindir ?= $(shell pkg-config --variable=plugindir kismet)
+plugindir ?= $(shell pkg-config --variable=plugindir kismet 2>/dev/null)
 INSTUSR ?= root
 INSTGRP ?= root
+
+ifeq ($(strip $(plugindir)),)
+$(info No kismet install found via pkg-config, assuming /usr/local/lib/kismet)
+plugindir = /usr/local/lib/kismet
+endif
 
 # As we have no live code, all we need is the manifest.conf to "compile"
 all:	manifest.conf
 
 # We have no requirements for install or userinstall, we just copy our data
 install:
-ifeq ("$(plugindir)", "")
-	echo "No kismet install found in pkgconfig, assuming /usr/local"
-	plugindir="/usr/local/lib/kismet/"
-endif
 	mkdir -p $(DESTDIR)/$(plugindir)/$(PLUGIN_NAME)
 	$(INSTALL) -o $(INSTUSR) -g $(INSTGRP) -m 444 manifest.conf $(DESTDIR)/$(plugindir)/$(PLUGIN_NAME)/manifest.conf
 
@@ -41,4 +42,3 @@ userinstall:
 
 clean:
 	@echo "Nothing to clean"
-
