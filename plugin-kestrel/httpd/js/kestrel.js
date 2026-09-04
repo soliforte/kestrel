@@ -63,50 +63,159 @@ const DEVICE_FIELDS = [
     ['kismet.device.base.last_time', 'last_time'],
     ['kismet.device.base.signal/kismet.common.signal.last_signal', 'signal'],
     ['kismet.device.base.location/kismet.common.location.avg_loc/kismet.common.location.geopoint', 'geopoint'],
+    ['kismet.device.base.crypt', 'crypt'],
+    ['kismet.device.base.frequency', 'freq'],
+    ['kismet.device.base.channel', 'chan'],
+    ['dot11.device/dot11.device.last_beaconed_ssid_record/dot11.advertisedssid.ht_mode', 'ht'],
+    // Only populated when kismet.conf has dot11_keep_ietags=true.
+    ['dot11.device/dot11.device.last_beaconed_ssid_record/dot11.advertisedssid.ie_tag_list', 'ietags'],
 ];
 
-// Category index drives the cluster pie chart colours.
-const CATEGORIES = [
-    { name: 'Wi-Fi AP',     color: '#ff4b00' },
-    { name: 'Wi-Fi client', color: '#bac900' },
-    { name: 'Other Wi-Fi',  color: '#55bcbe' },
-    { name: 'Bluetooth',    color: '#3e647e' },
-    { name: 'Other',        color: '#ada59a' },
+// A marker is a coloured disc: the fill is the security class (also the
+// cluster pie category), the ring is the frequency band, the glyph is the
+// device type, and a badge carries the Wi-Fi generation when it is known.
+
+// Index doubles as the PruneCluster category, so order matters.
+const SECURITY = [
+    { key: 'open',    name: 'Open',    color: '#e53935' },
+    { key: 'wep',     name: 'WEP',     color: '#fb8c00' },
+    { key: 'wpa',     name: 'WPA',     color: '#fdd835' },
+    { key: 'wpa2',    name: 'WPA2',    color: '#7cb342' },
+    { key: 'wpa3',    name: 'WPA3',    color: '#00897b' },
+    { key: 'unknown', name: 'Unknown', color: '#78909c' },
 ];
 
-const STYLES = {
-    'Wi-Fi AP':         { icon: 'ic_router_black_24dp_1x.png',            category: 0 },
-    'Wi-Fi Client':     { icon: 'ic_laptop_chromebook_black_24dp_1x.png', category: 1 },
-    'Wi-Fi Bridged':    { icon: 'ic_power_input_black_24dp_1x.png',       category: 2 },
-    'Wi-Fi WDS':        { icon: 'ic_leak_add_black_24dp_1x.png',          category: 2 },
-    'Wi-Fi WDS AP':     { icon: 'ic_leak_add_black_24dp_1x.png',          category: 2 },
-    'Wi-Fi WDS Device': { icon: 'ic_leak_add_black_24dp_1x.png',          category: 2 },
-    'Wi-Fi Ad-Hoc':     { icon: 'ic_cast_connected_black_24dp_1x.png',    category: 2 },
-    'Wi-Fi Device':     { icon: 'ic_network_check_black_24dp_1x.png',     category: 2 },
+const BANDS = {
+    '2.4': { name: '2.4 GHz', color: '#ffb300' },
+    '5':   { name: '5 GHz',   color: '#42a5f5' },
+    '6':   { name: '6 GHz',   color: '#ab47bc' },
 };
-const BLUETOOTH_STYLE = { icon: 'ic_bluetooth_black_24dp_1x.png',     category: 3 };
-const DEFAULT_STYLE   = { icon: 'ic_network_check_black_24dp_1x.png', category: 4 };
+// Object.values() would put the integer-like keys first; keep display order.
+const BAND_ORDER = ['2.4', '5', '6'];
 
-function styleFor(rec) {
-    if (rec.type in STYLES)
-        return STYLES[rec.type];
-    if (rec.phy === 'Bluetooth' || rec.phy === 'BTLE')
-        return BLUETOOTH_STYLE;
-    return DEFAULT_STYLE;
+// Font Awesome 6 glyphs, shipped with Kismet.  Bluetooth uses Kismet's own
+// SVG because the Bluetooth glyph is not in the free solid set.
+const GLYPHS = {
+    'Wi-Fi AP':         'fa-wifi',
+    'Wi-Fi Client':     'fa-laptop',
+    'Wi-Fi Bridged':    'fa-ethernet',
+    'Wi-Fi WDS':        'fa-diagram-project',
+    'Wi-Fi WDS AP':     'fa-diagram-project',
+    'Wi-Fi WDS Device': 'fa-diagram-project',
+    'Wi-Fi Ad-Hoc':     'fa-circle-nodes',
+    'Wi-Fi Device':     'fa-signal',
+};
+
+const ENTERPRISE_RE = /-(EAP|PEAP|LEAP|TTLS|TLS)\b/;
+
+// Kismet's crypt string looks like "WPA2 WPA2-PSK AES-CCMP" or "Open".  It is
+// empty for clients and anything Kismet never saw an RSN IE from.
+function securityFor(crypt) {
+    if (crypt.includes('WPA3'))
+        return 4;
+    if (crypt.includes('WPA2'))
+        return 3;
+    if (crypt.includes('WPA'))
+        return 2;
+    if (crypt.includes('WEP'))
+        return 1;
+    if (crypt.startsWith('Open'))
+        return 0;
+    return 5;
 }
 
-const iconCache = {};
-function leafletIcon(file) {
-    if (!(file in iconCache)) {
-        iconCache[file] = L.icon({
-            iconUrl: PLUGIN_URI + 'images/' + file,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-            popupAnchor: [0, -12],
-            className: 'kestrel-device-icon',
-        });
+// "WPA2 WPA2-PSK AES-CCMP" -> "WPA2-PSK (AES-CCMP)"
+function securityLabel(rec) {
+    if (rec.crypt === '')
+        return SECURITY[rec.security].name;
+    const parts = rec.crypt.split(' ');
+    const akm = parts.filter((p) => /-(PSK|SAE|EAP|PEAP|LEAP|TTLS|TLS|FILS|TDLS)/.test(p));
+    const ciphers = parts.filter((p) => /^(AES|TKIP|WEP)/.test(p));
+    let label = akm.length ? akm.join(' / ') : parts[0];
+    if (ciphers.length)
+        label += ` (${ciphers.join(', ')})`;
+    return label;
+}
+
+function bandFor(freqKhz) {
+    const mhz = freqKhz / 1000;
+    if (mhz >= 2400 && mhz < 2500)
+        return '2.4';
+    if (mhz >= 5150 && mhz < 5925)
+        return '5';
+    if (mhz >= 5925 && mhz <= 7125)
+        return '6';
+    return null;
+}
+
+// Kismet does not decode 802.11ax/be capabilities, so the generation is
+// inferred.  With dot11_keep_ietags=true the beacon's IE tag list is exact
+// up to Wi-Fi 6 (HE and EHT both hide behind extension tag 255); otherwise
+// the channel width and band give a lower bound.  A trailing "+" means
+// "at least".  Returns null when nothing can be said, 'legacy' for a/b/g.
+function generationFor(rec) {
+    if (!/^Wi-Fi (AP|Ad-Hoc|WDS)/.test(rec.type))
+        return null;
+
+    if (rec.ietags != null && rec.ietags.length > 0) {
+        if (rec.ietags.includes(255))
+            return '6+';
+        if (rec.ietags.includes(191))
+            return '5';
+        if (rec.ietags.includes(45))
+            return '4';
+        return 'legacy';
     }
-    return iconCache[file];
+
+    if (rec.band === '6')
+        return '6+';
+    if (/HT(80|160)/.test(rec.ht))
+        return '5+';
+    if (/HT(20|40)/.test(rec.ht))
+        return '4+';
+    return null;
+}
+
+function generationLabel(rec) {
+    if (rec.gen === 'legacy')
+        return 'Legacy (802.11a/b/g)';
+    if (rec.gen != null)
+        return `Wi-Fi ${rec.gen}` + (rec.ht ? ` (${rec.ht})` : '');
+    return rec.ht;
+}
+
+// Icons are shared between devices with the same look, so nothing
+// device-specific may go into the HTML.
+const iconCache = new Map();
+function markerIcon(rec) {
+    const sec = SECURITY[rec.security];
+    const band = rec.band != null ? BANDS[rec.band] : null;
+    const isBluetooth = rec.phy === 'Bluetooth' || rec.phy === 'BTLE';
+    const glyph = GLYPHS[rec.type] || (isBluetooth ? 'bluetooth' : 'fa-microchip');
+    const badge = rec.gen != null && rec.gen !== 'legacy' ? rec.gen : '';
+    const key = [sec.key, rec.band, glyph, badge, rec.enterprise].join('|');
+
+    let icon = iconCache.get(key);
+    if (icon == null) {
+        const inner = glyph === 'bluetooth'
+            ? `<img src="${local_uri_prefix}images/bluetooth-solid-icon-dark.svg" alt="">`
+            : `<i class="fa ${glyph}"></i>`;
+        const html =
+            `<div class="kestrel-marker" style="--fill:${sec.color};--ring:${band ? band.color : '#ffffff'}">` +
+            inner +
+            (badge ? `<span class="kestrel-badge">${badge}</span>` : '') +
+            (rec.enterprise ? '<i class="fa fa-lock kestrel-lock"></i>' : '') +
+            '</div>';
+        icon = L.divIcon({
+            className: 'kestrel-divicon',
+            html: html,
+            iconSize: [26, 26],
+            iconAnchor: [13, 13],
+            popupAnchor: [0, -14],
+        });
+        iconCache.set(key, icon);
+    }
+    return icon;
 }
 
 // ---------------------------------------------------------------------------
@@ -313,7 +422,7 @@ function defineClusterIcon() {
     if (L.Icon.MarkerCluster)
         return;
 
-    // Canvas pie chart of device categories, with the population in the middle.
+    // Canvas pie chart of security classes, with the population in the middle.
     L.Icon.MarkerCluster = L.Icon.extend({
         options: {
             iconSize: new L.Point(44, 44),
@@ -334,14 +443,14 @@ function defineClusterIcon() {
             const c = 22, r = 22, pi2 = Math.PI * 2;
             let start = 0;
 
-            for (let i = 0; i < CATEGORIES.length; i++) {
+            for (let i = 0; i < SECURITY.length; i++) {
                 const share = (this.stats[i] || 0) / this.population;
                 if (share <= 0)
                     continue;
                 const end = start + share * pi2;
                 ctx.beginPath();
                 ctx.moveTo(c, c);
-                ctx.fillStyle = CATEGORIES[i].color;
+                ctx.fillStyle = SECURITY[i].color;
                 ctx.arc(c, c, r, start, end);
                 ctx.lineTo(c, c);
                 ctx.fill();
@@ -389,8 +498,13 @@ function addControls() {
     const legend = L.control({ position: 'bottomright' });
     legend.onAdd = function() {
         const div = L.DomUtil.create('div', 'kestrel-legend');
-        div.innerHTML = CATEGORIES.map((c) =>
-            `<span><i class="swatch" style="background:${c.color}"></i>${c.name}</span>`).join('');
+        const security = SECURITY.map((s) =>
+            `<span><i class="swatch" style="background:${s.color}"></i>${s.name}</span>`).join('');
+        const bands = BAND_ORDER.map((k) => BANDS[k]).map((b) =>
+            `<span><i class="swatch ring" style="border-color:${b.color}"></i>${b.name}</span>`).join('');
+        div.innerHTML =
+            `<div><b>Security</b> ${security}</div>` +
+            `<div><b>Band</b> ${bands} <span><span class="kestrel-badge">5+</span> Wi-Fi generation, + = at least</span></div>`;
         return div;
     };
     legend.addTo(map);
@@ -521,11 +635,22 @@ function ingest(list, full) {
         rec.signal = d.signal;
         rec.last_time = d.last_time;
 
-        const style = styleFor(rec);
-        if (rec.marker.category !== style.category)
+        // Fields absent from a record are simplified to 0 by Kismet.
+        rec.crypt = typeof d.crypt === 'string' ? d.crypt : '';
+        rec.freq = Number(d.freq) || 0;
+        rec.chan = typeof d.chan === 'string' ? d.chan : '';
+        rec.ht = typeof d.ht === 'string' ? d.ht : '';
+        rec.ietags = Array.isArray(d.ietags) ? d.ietags : null;
+
+        rec.security = securityFor(rec.crypt);
+        rec.enterprise = ENTERPRISE_RE.test(rec.crypt);
+        rec.band = bandFor(rec.freq);
+        rec.gen = generationFor(rec);
+
+        if (rec.marker.category !== rec.security)
             changed = true;
-        rec.marker.category = style.category;
-        rec.marker.data.icon = leafletIcon(style.icon);
+        rec.marker.category = rec.security;
+        rec.marker.data.icon = markerIcon(rec);
     }
 
     if (seen != null) {
@@ -550,13 +675,32 @@ function popupFor(data) {
     const r = data.rec;
     const seen = r.last_time ? new Date(r.last_time * 1000).toLocaleString() : 'unknown';
     const signal = r.signal ? `${r.signal} dBm` : 'unknown';
+
+    const radio = [];
+    if (r.chan)
+        radio.push(`channel ${r.chan}`);
+    if (r.freq)
+        radio.push(`${Math.round(r.freq / 1000)} MHz`);
+    if (r.band)
+        radio.push(BANDS[r.band].name);
+
+    const lines = [
+        `MAC: ${kismet.censorMAC(r.mac)}`,
+        `Type: ${r.type} (${r.phy})`,
+        `Manufacturer: ${r.manuf}`,
+    ];
+    if (r.phy === 'IEEE802.11')
+        lines.push(`Security: ${securityLabel(r)}${r.enterprise ? ', enterprise' : ''}`);
+    if (radio.length)
+        lines.push(`Radio: ${radio.join(' &middot; ')}`);
+    const gen = generationLabel(r);
+    if (gen)
+        lines.push(`Wi-Fi: ${gen}`);
+    lines.push(`Signal: ${signal}`, `Last seen: ${seen}`);
+
     return `<div class="kestrel-popup">
         <b>${r.name || '(unnamed)'}</b><br>
-        MAC: ${kismet.censorMAC(r.mac)}<br>
-        Type: ${r.type} (${r.phy})<br>
-        Manufacturer: ${r.manuf}<br>
-        Signal: ${signal}<br>
-        Last seen: ${seen}<br>
+        ${lines.join('<br>\n        ')}<br>
         <a href="#" class="kestrel-detail" data-key="${r.key}">Device details</a>
     </div>`;
 }
@@ -568,8 +712,14 @@ function currentSearchTerm() {
 function matchesSearch(rec, term) {
     if (term === '')
         return true;
-    return [rec.name, rec.mac, rec.type, rec.manuf, rec.phy]
-        .some((v) => typeof v === 'string' && v.toLowerCase().includes(term));
+    const haystack = [
+        rec.name, rec.mac, rec.type, rec.manuf, rec.phy, rec.crypt, rec.chan,
+        SECURITY[rec.security].name,
+        rec.band != null ? BANDS[rec.band].name : '',
+        rec.gen != null ? `wi-fi ${rec.gen}` : '',
+        rec.enterprise ? 'enterprise' : '',
+    ];
+    return haystack.some((v) => typeof v === 'string' && v.toLowerCase().includes(term));
 }
 
 function applyFilter() {
